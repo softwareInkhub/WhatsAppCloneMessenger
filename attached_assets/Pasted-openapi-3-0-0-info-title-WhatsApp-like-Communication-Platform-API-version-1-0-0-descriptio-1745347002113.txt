@@ -1,0 +1,299 @@
+openapi: 3.0.0
+info:
+  title: WhatsApp-like Communication Platform API
+  version: 1.0.0
+  description: API specification for a WhatsApp-like communication platform
+
+servers:
+  - url: https://api.whatspe.com/v1
+    description: Production server
+  - url: http://localhost:3000/v1
+    description: Local development server
+
+components:
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - username
+        - email
+        - phoneNumber
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        phoneNumber:
+          type: string
+        profilePicture:
+          type: string
+        status:
+          type: string
+        lastSeen:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      required:
+        - id
+        - senderId
+        - receiverId
+        - content
+        - type
+      properties:
+        id:
+          type: string
+          format: uuid
+        senderId:
+          type: string
+          format: uuid
+        receiverId:
+          type: string
+          format: uuid
+        content:
+          type: string
+        type:
+          type: string
+          enum: [text, image, video, audio, document]
+        status:
+          type: string
+          enum: [sent, delivered, read]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ContactRequest:
+      type: object
+      required:
+        - id
+        - senderId
+        - receiverId
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        senderId:
+          type: string
+          format: uuid
+        receiverId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, accepted, rejected]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - phoneNumber
+                - password
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                phoneNumber:
+                  type: string
+                password:
+                  type: string
+                  format: password
+      responses:
+        '201':
+          description: User successfully registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid input
+        '409':
+          description: User already exists
+
+  /auth/login:
+    post:
+      summary: Login user
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+
+  /contacts/request:
+    post:
+      summary: Send contact request
+      tags:
+        - Contacts
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - receiverId
+              properties:
+                receiverId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Contact request sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactRequest'
+        '400':
+          description: Invalid input
+        '404':
+          description: Receiver not found
+
+  /contacts/accept/{requestId}:
+    post:
+      summary: Accept contact request
+      tags:
+        - Contacts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contact request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactRequest'
+        '404':
+          description: Request not found
+
+  /messages:
+    post:
+      summary: Send message
+      tags:
+        - Messages
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - receiverId
+                - content
+                - type
+              properties:
+                receiverId:
+                  type: string
+                  format: uuid
+                content:
+                  type: string
+                type:
+                  type: string
+                  enum: [text, image, video, audio, document]
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          description: Invalid input
+        '404':
+          description: Receiver not found
+
+  /webhooks/messages:
+    post:
+      summary: Message webhook endpoint
+      tags:
+        - Webhooks
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Message'
+      responses:
+        '200':
+          description: Webhook processed successfully
+        '400':
+          description: Invalid webhook payload 
