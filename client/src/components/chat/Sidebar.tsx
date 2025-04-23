@@ -43,9 +43,9 @@ export default function Sidebar({
       const newContact = data.contact;
       
       // Add the new contact to our contacts list
-      setContacts(prev => {
+      setContacts((prev: User[]) => {
         // Check if contact already exists
-        if (prev.some(c => c.id === newContact.id)) {
+        if (prev.some((c: User) => c.id === newContact.id)) {
           return prev;
         }
         return [...prev, newContact];
@@ -199,7 +199,7 @@ export default function Sidebar({
               <div className="flex justify-between items-baseline">
                 <span className="font-medium truncate">{request.sender?.username || "Unknown"}</span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {new Date(request.createdAt).toLocaleDateString()}
+                  {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : 'Recently'}
                 </span>
               </div>
               <div className="flex justify-between items-center">

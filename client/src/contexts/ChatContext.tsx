@@ -15,6 +15,7 @@ interface ChatContextType {
     pendingRequests: boolean;
   };
   setActiveContact: (contact: User | null) => void;
+  setContacts: React.Dispatch<React.SetStateAction<User[]>>;
   refreshContacts: () => Promise<void>;
   refreshMessages: () => Promise<void>;
   refreshPendingRequests: () => Promise<void>;
@@ -270,6 +271,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         pendingRequests,
         loading,
         setActiveContact,
+        setContacts,
         refreshContacts,
         refreshMessages,
         refreshPendingRequests,
