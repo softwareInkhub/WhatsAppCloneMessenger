@@ -67,11 +67,11 @@ async function scanTable(tableName: string, displayName: string) {
   }
 }
 
-// Run the test function if this file is executed directly
-if (require.main === module) {
-  testDynamoDBIntegration().then(() => {
-    log("Test script completed");
-  }).catch(err => {
-    console.error("Error in test script:", err);
-  });
-}
+// Run the test function
+// In ES modules, there's no direct equivalent to require.main === module
+// So we'll just execute the test directly
+testDynamoDBIntegration().then(() => {
+  log("Test script completed");
+}).catch(err => {
+  console.error("Error in test script:", err);
+});
