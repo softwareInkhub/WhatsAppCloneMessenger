@@ -60,9 +60,17 @@ export function SearchBar() {
     }
   };
 
-  // Handle result click to navigate to the conversation
+  // Handle result click to navigate to the conversation and highlight the message
   const handleResultClick = (result: any) => {
     setActiveContact(result.contact);
+    
+    // Set a short timeout to allow the conversation to load before highlighting
+    setTimeout(() => {
+      if (result.message && result.message.id) {
+        highlightMessage(result.message.id);
+      }
+    }, 500);
+    
     setIsOpen(false);
     clearSearch();
   };
