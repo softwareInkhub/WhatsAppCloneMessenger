@@ -110,9 +110,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             break;
             
           case 'TYPING':
-            // Handle typing indicators
-            const isTyping = payload.isTyping;
-            const senderId = payload.senderId;
+            // Handle typing indicators - support both full and shortened property names
+            const isTyping = payload.isTyping || payload.it;
+            const senderId = payload.senderId || payload.s;
+            
+            console.log("Typing status update:", { senderId, isTyping });
             
             // Call the typing status handler
             handleTypingStatus(senderId, isTyping);
@@ -185,8 +187,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const handleNewMessage = (message: Message | any) => {
     console.log("Processing new message in handler:", message);
     
-    // Add message to state - ensure we have a properly formatted message object
-    const processedMessage = message as Message;
+    // Convert shortened property names to full names if needed
+    // This handles the optimized WebSocket format with shortened keys
+    const processedMessage: Message = {
+      id: message.id,
+      senderId: message.senderId || message.s,
+      receiverId: message.receiverId || message.r,
+      content: message.content || message.c,
+      type: message.type || message.t,
+      status: message.status || message.st,
+      createdAt: message.createdAt || message.ts,
+      updatedAt: message.updatedAt || message.ts
+    };
+    
+    console.log("Processed message with full property names:", processedMessage);
     addMessage(processedMessage);
     
     // Show notification if message is from someone other than active contact
@@ -201,9 +215,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Handle message status updates
-  const handleMessagesRead = (data: { readBy: string, messages: string[] }) => {
-    updateMessageStatus(data.messages, "read");
+  // Handle message status updates - with support for both formats
+  const handleMessagesRead = (data: any) => {
+    // Extract data from either long or short format
+    const readerId = data.readBy || data.rb;
+    const messageIds = data.messages || data.messageIds || data.mIds || [];
+    
+    console.log("Read receipt received:", { readerId, messageIds });
+    
+    // Update message status to read
+    updateMessageStatus(messageIds, "read");
   };
 
   // Handle incoming contact requests
