@@ -3,8 +3,15 @@ import EmojiPickerReact, { Theme, EmojiStyle, EmojiClickData } from 'emoji-picke
 import { Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTrigger,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerFooter,
+} from '@/components/ui/drawer';
 
 interface EmojiPickerProps {
   onEmojiSelect: (emoji: string) => void;
@@ -13,13 +20,13 @@ interface EmojiPickerProps {
 export function EmojiPicker({ onEmojiSelect }: EmojiPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const { theme } = useTheme();
   const isMobile = useMediaQuery("(max-width: 640px)");
 
   // Handle clicking outside to close the picker when not on mobile
   useEffect(() => {
-    if (isMobile) return; // Skip for mobile as we use a dialog
+    if (isMobile) return; // Skip for mobile as we use a drawer
 
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -60,6 +67,36 @@ export function EmojiPicker({ onEmojiSelect }: EmojiPickerProps) {
     />
   );
 
+  // For mobile, we use a drawer that slides up from the bottom
+  if (isMobile) {
+    return (
+      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+        <DrawerTrigger asChild>
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => setIsOpen(true)}
+            title="Add emoji"
+            className="h-9 w-9"
+          >
+            <Smile className="h-5 w-5" />
+          </Button>
+        </DrawerTrigger>
+        <DrawerContent className="h-[70vh] px-0">
+          <DrawerHeader className="px-4 pb-0">
+            <DrawerTitle>Select Emoji</DrawerTitle>
+          </DrawerHeader>
+          <div className="p-0 overflow-hidden">
+            <div className="h-full">
+              {emojiPickerElement}
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  // For desktop, we show a popover
   return (
     <>
       <Button 
@@ -68,30 +105,18 @@ export function EmojiPicker({ onEmojiSelect }: EmojiPickerProps) {
         size="icon"
         onClick={() => setIsOpen(!isOpen)}
         title="Add emoji"
-        className="h-9 w-9 sm:h-10 sm:w-10"
+        className="h-10 w-10"
       >
         <Smile className="h-5 w-5" />
       </Button>
       
-      {/* Desktop emoji picker */}
-      {!isMobile && isOpen && (
+      {isOpen && (
         <div 
           ref={pickerRef}
           className="absolute bottom-12 left-0 z-50 shadow-lg rounded-lg overflow-hidden"
         >
           {emojiPickerElement}
         </div>
-      )}
-
-      {/* Mobile emoji picker in a dialog */}
-      {isMobile && (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogContent className="p-0 sm:max-w-md max-h-[90vh] overflow-hidden">
-            <div className="w-full h-full">
-              {emojiPickerElement}
-            </div>
-          </DialogContent>
-        </Dialog>
       )}
     </>
   );

@@ -1,10 +1,19 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Paperclip, X, File, Upload, Loader2, ImageIcon, Music, Video, FileText } from 'lucide-react';
+import { Paperclip, X, File, Upload, Loader2, ImageIcon, Music, Video, FileText, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { DialogDescription } from '@/components/ui/dialog';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTrigger,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerFooter,
+  DrawerClose,
+} from '@/components/ui/drawer';
 
 interface AttachmentUploaderProps {
   onFileSelect: (file: File) => void;
@@ -112,7 +121,8 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
     return <FileText className="h-12 w-12 text-gray-400" />;
   };
 
-  return (
+  // Common hidden inputs for file selection
+  const hiddenInputs = (
     <>
       {/* Hidden input for gallery selection */}
       <input
@@ -132,15 +142,195 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
         capture="environment"
         onChange={handleCameraCapture}
       />
+    </>
+  );
+
+  // Content to show when no file is selected
+  const uploadContent = (
+    <>
+      {/* Mobile specific controls */}
+      {isMobile && (
+        <div className="mb-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('upload')}
+              className={`flex-1 py-2 font-medium text-sm text-center ${
+                activeTab === 'upload'
+                  ? 'text-primary border-b-2 border-primary'
+                  : 'text-gray-500 dark:text-gray-400'
+              }`}
+            >
+              Upload
+            </button>
+            <button
+              onClick={openCamera}
+              className={`flex-1 py-2 font-medium text-sm text-center ${
+                activeTab === 'camera'
+                  ? 'text-primary border-b-2 border-primary'
+                  : 'text-gray-500 dark:text-gray-400'
+              }`}
+            >
+              Camera
+            </button>
+            <button
+              onClick={openGallery}
+              className={`flex-1 py-2 font-medium text-sm text-center ${
+                activeTab === 'gallery'
+                  ? 'text-primary border-b-2 border-primary'
+                  : 'text-gray-500 dark:text-gray-400'
+              }`}
+            >
+              Gallery
+            </button>
+          </div>
+        </div>
+      )}
       
-      {/* Attachment button */}
+      {/* File upload area */}
+      <div 
+        {...getRootProps()} 
+        className={`
+          border-2 border-dashed rounded-lg p-4 sm:p-6 text-center cursor-pointer
+          transition-colors duration-200 ease-in-out
+          ${isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 dark:border-gray-600'}
+          hover:border-primary hover:bg-primary/5
+        `}
+      >
+        <input {...getInputProps()} />
+        <Upload className="h-10 w-10 mx-auto mb-2 text-gray-400" />
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {isMobile 
+            ? 'Tap to browse files' 
+            : 'Drag and drop a file here, or click to select'}
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          Maximum file size: 10MB
+        </p>
+      </div>
+      
+      {/* Mobile-specific quick actions */}
+      {isMobile && (
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <Button 
+            variant="outline" 
+            className="flex items-center justify-center space-x-2" 
+            onClick={openCamera}
+          >
+            <Camera className="h-4 w-4" />
+            <span>Camera</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            className="flex items-center justify-center space-x-2" 
+            onClick={openGallery}
+          >
+            <ImageIcon className="h-4 w-4" />
+            <span>Gallery</span>
+          </Button>
+        </div>
+      )}
+    </>
+  );
+
+  // Content to show when a file is selected
+  const previewContent = (
+    <div className="space-y-4">
+      <div className="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="mb-3">
+          {getFileIcon(previewFile!.file)}
+        </div>
+        <div className="w-full truncate text-center">
+          <p className="font-medium truncate">{previewFile!.file.name}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {(previewFile!.file.size / 1024 / 1024).toFixed(2)} MB
+          </p>
+        </div>
+      </div>
+      
+      {isUploading && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+            <span>Uploading...</span>
+            <span>{uploadProgress}%</span>
+          </div>
+          <Progress value={uploadProgress} className="h-2" />
+        </div>
+      )}
+    </div>
+  );
+
+  // Footer buttons
+  const footerButtons = (
+    <div className="flex justify-between w-full">
+      <Button 
+        variant="outline" 
+        onClick={handleCancel}
+        disabled={isUploading}
+      >
+        Cancel
+      </Button>
+      {previewFile && (
+        <Button 
+          onClick={handleSubmit} 
+          disabled={isUploading}
+        >
+          {isUploading ? 'Uploading...' : 'Send'}
+        </Button>
+      )}
+    </div>
+  );
+
+  // Mobile view with drawer
+  if (isMobile) {
+    return (
+      <>
+        {hiddenInputs}
+        <Drawer open={isOpen} onOpenChange={setIsOpen}>
+          <DrawerTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => setIsOpen(true)}
+              disabled={isUploading}
+              title="Attach file"
+              className="h-9 w-9"
+            >
+              {isUploading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Paperclip className="h-5 w-5" />
+              )}
+            </Button>
+          </DrawerTrigger>
+          <DrawerContent className="h-[85vh] px-4">
+            <DrawerHeader className="p-4 pb-2">
+              <DrawerTitle>Attach File</DrawerTitle>
+            </DrawerHeader>
+            
+            <div className="flex-1 overflow-auto pb-4 px-1">
+              {!previewFile ? uploadContent : previewContent}
+            </div>
+            
+            <DrawerFooter className="pt-2 pb-8">
+              {footerButtons}
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
+
+  // Desktop view
+  return (
+    <>
+      {hiddenInputs}
       <Button 
         variant="ghost" 
         size="icon"
         onClick={() => setIsOpen(true)}
         disabled={isUploading}
         title="Attach file"
-        className="h-9 w-9 sm:h-10 sm:w-10"
+        className="h-10 w-10"
       >
         {isUploading ? (
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -149,144 +339,21 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
         )}
       </Button>
 
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Upload Attachment</DialogTitle>
-            {isMobile && (
-              <DialogDescription>
-                Select a file to share
-              </DialogDescription>
-            )}
-          </DialogHeader>
+      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+        <DrawerContent className="max-w-md mx-auto rounded-t-lg">
+          <DrawerHeader>
+            <DrawerTitle>Upload Attachment</DrawerTitle>
+          </DrawerHeader>
           
-          {!previewFile ? (
-            <>
-              {/* Mobile specific controls */}
-              {isMobile && (
-                <div className="mb-4 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex">
-                    <button
-                      onClick={() => setActiveTab('upload')}
-                      className={`flex-1 py-2 font-medium text-sm text-center ${
-                        activeTab === 'upload'
-                          ? 'text-primary border-b-2 border-primary'
-                          : 'text-gray-500 dark:text-gray-400'
-                      }`}
-                    >
-                      Upload
-                    </button>
-                    <button
-                      onClick={openCamera}
-                      className={`flex-1 py-2 font-medium text-sm text-center ${
-                        activeTab === 'camera'
-                          ? 'text-primary border-b-2 border-primary'
-                          : 'text-gray-500 dark:text-gray-400'
-                      }`}
-                    >
-                      Camera
-                    </button>
-                    <button
-                      onClick={openGallery}
-                      className={`flex-1 py-2 font-medium text-sm text-center ${
-                        activeTab === 'gallery'
-                          ? 'text-primary border-b-2 border-primary'
-                          : 'text-gray-500 dark:text-gray-400'
-                      }`}
-                    >
-                      Gallery
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              {/* File upload area (both mobile and desktop) */}
-              <div 
-                {...getRootProps()} 
-                className={`
-                  border-2 border-dashed rounded-lg p-4 sm:p-6 text-center cursor-pointer
-                  transition-colors duration-200 ease-in-out
-                  ${isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 dark:border-gray-600'}
-                  hover:border-primary hover:bg-primary/5
-                `}
-              >
-                <input {...getInputProps()} />
-                <Upload className="h-10 w-10 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {isMobile 
-                    ? 'Tap to browse files' 
-                    : 'Drag and drop a file here, or click to select'}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Maximum file size: 10MB
-                </p>
-              </div>
-              
-              {/* Mobile-specific buttons */}
-              {isMobile && (
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <Button 
-                    variant="outline" 
-                    className="flex items-center justify-center space-x-2" 
-                    onClick={openCamera}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
-                    <span>Camera</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="flex items-center justify-center space-x-2" 
-                    onClick={openGallery}
-                  >
-                    <ImageIcon className="h-4 w-4" />
-                    <span>Gallery</span>
-                  </Button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div className="mb-3">
-                  {getFileIcon(previewFile.file)}
-                </div>
-                <div className="w-full truncate text-center">
-                  <p className="font-medium truncate">{previewFile.file.name}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {(previewFile.file.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                </div>
-              </div>
-              
-              {isUploading && (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                    <span>Uploading...</span>
-                    <span>{uploadProgress}%</span>
-                  </div>
-                  <Progress value={uploadProgress} className="h-2" />
-                </div>
-              )}
-            </div>
-          )}
+          <div className="p-4 pt-0">
+            {!previewFile ? uploadContent : previewContent}
+          </div>
           
-          <DialogFooter className="sm:justify-between">
-            <Button 
-              variant="outline" 
-              onClick={handleCancel}
-              disabled={isUploading}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSubmit} 
-              disabled={!previewFile || isUploading}
-            >
-              {isUploading ? 'Uploading...' : 'Send'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <DrawerFooter>
+            {footerButtons}
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </>
   );
 }
