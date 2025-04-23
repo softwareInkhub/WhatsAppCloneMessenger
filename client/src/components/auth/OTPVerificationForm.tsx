@@ -28,7 +28,10 @@ export default function OTPVerificationForm() {
           title: "OTP Verified",
           description: "Please complete your profile",
         });
-        setLocation("/register");
+        // Short timeout to ensure state is updated before navigation
+        setTimeout(() => {
+          setLocation("/register");
+        }, 50);
       } else {
         // Existing user, log in
         login(data.user);
@@ -37,7 +40,10 @@ export default function OTPVerificationForm() {
           title: "Login Successful",
           description: "Welcome back!",
         });
-        setLocation("/chat");
+        // Short timeout to ensure state is updated before navigation
+        setTimeout(() => {
+          setLocation("/chat");
+        }, 50);
       }
     },
     onError: (error: any) => {

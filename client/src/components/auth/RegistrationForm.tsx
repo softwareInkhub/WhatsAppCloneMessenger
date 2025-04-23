@@ -48,11 +48,14 @@ export default function RegistrationForm() {
       setIsLoading(false);
       login(data);
       console.log("Registration complete, navigating to /chat");
-      setLocation("/chat");
       toast({
         title: "Registration Complete",
         description: "Your account has been created successfully",
       });
+      // Short timeout to ensure state is updated before navigation
+      setTimeout(() => {
+        setLocation("/chat");
+      }, 50);
     },
     onError: (error: any) => {
       setIsLoading(false);

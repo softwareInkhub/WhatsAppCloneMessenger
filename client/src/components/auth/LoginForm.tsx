@@ -44,9 +44,11 @@ export default function LoginForm() {
         description: "Please check your phone for the verification code",
       });
       
-      // Use wouter's navigation
+      // Use wouter's navigation with a short timeout to ensure state updates first
       console.log("Navigating to /verify");
-      setLocation("/verify");
+      setTimeout(() => {
+        setLocation("/verify");
+      }, 50);
     },
     onError: (error: any) => {
       console.error("OTP request failed:", error);
