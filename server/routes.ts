@@ -314,18 +314,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const updateData = updateContactRequestSchema.parse({ status: 'accepted' });
       
+      // Update request status
       const updatedRequest = await storage.updateContactRequestStatus(requestId, updateData);
+      
+      // Create bidirectional contact relationship
+      console.log(`Creating contact relationship between ${userId} and ${request.senderId}`);
+      
+      // Add sender to receiver's contacts
+      const contactRelation1 = await storage.addContact(userId, request.senderId);
+      
+      // Add receiver to sender's contacts
+      const contactRelation2 = await storage.addContact(request.senderId, userId);
+      
+      console.log(`Contact relationships created: ${JSON.stringify(contactRelation1)} and ${JSON.stringify(contactRelation2)}`);
+      
+      // Get the sender user for contact info
+      const sender = await storage.getUser(request.senderId);
+      if (!sender) {
+        return sendError(res, 404, 'Sender not found');
+      }
+      
+      // Get the receiver user for contact info
+      const receiver = await storage.getUser(userId);
+      if (!receiver) {
+        return sendError(res, 404, 'Receiver not found');
+      }
       
       // Notify sender if online
       const senderWs = clients.get(request.senderId);
       if (senderWs && senderWs.readyState === 1) {
         senderWs.send(JSON.stringify({
           type: 'CONTACT_REQUEST_ACCEPTED',
-          data: updatedRequest
+          data: {
+            request: updatedRequest,
+            contact: receiver  // Send the receiver's details as the new contact
+          }
         }));
       }
       
-      res.status(200).json(updatedRequest);
+      // Return everything the client needs
+      res.status(200).json({
+        request: updatedRequest,
+        contact: sender  // Send the sender's details as the new contact
+      });
     } catch (error) {
       if (error instanceof ZodError) {
         return sendError(res, 400, 'Invalid request data');

@@ -162,12 +162,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   // Handle accepted contact requests
-  const handleContactRequestAccepted = (request: ContactRequest) => {
-    refreshContacts();
+  const handleContactRequestAccepted = (data: { request: ContactRequest, contact: User }) => {
+    // Add the new contact directly to the contacts list
+    setContacts(prev => [...prev, data.contact]);
+    
+    // Remove from pending requests if present
+    setPendingRequests(prev => prev.filter(req => req.id !== data.request.id));
     
     toast({
       title: "Contact request accepted",
-      description: "Your contact request was accepted",
+      description: `${data.contact.username} accepted your contact request`,
     });
   };
 

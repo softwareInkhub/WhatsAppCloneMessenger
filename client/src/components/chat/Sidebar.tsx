@@ -26,7 +26,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const { currentUser } = useAuth();
-  const { contacts, pendingRequests, loading, refreshContacts, refreshPendingRequests } = useChat();
+  const { contacts, pendingRequests, loading, refreshContacts, refreshPendingRequests, setContacts } = useChat();
   const { toast } = useToast();
   
   // Filter contacts based on search query
@@ -38,12 +38,25 @@ export default function Sidebar({
   const acceptMutation = useMutation({
     mutationFn: ({ requestId, userId }: { requestId: string; userId: string }) => 
       acceptContactRequest(requestId, userId),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Update our contacts list directly with the new contact
+      const newContact = data.contact;
+      
+      // Add the new contact to our contacts list
+      setContacts(prev => {
+        // Check if contact already exists
+        if (prev.some(c => c.id === newContact.id)) {
+          return prev;
+        }
+        return [...prev, newContact];
+      });
+      
+      // Refresh pending requests to remove the accepted one
       refreshPendingRequests();
-      refreshContacts();
+      
       toast({
         title: "Contact Request Accepted",
-        description: "You are now connected with this contact",
+        description: `You are now connected with ${newContact.username}`,
       });
     },
     onError: (error) => {
