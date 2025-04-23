@@ -73,19 +73,34 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        
-        // Handle different message types - optimized with shorter type names
-        const type = data.type || data.t; // Support both formats
-        const payload = data.data || data.d; // Support both formats
-        
-        if (!type || !payload) {
-          console.error("Invalid WebSocket message format:", data);
+        // Guard against null or non-string data
+        if (!event.data) {
+          console.error("Received empty WebSocket message");
           return;
         }
         
-        console.log(`WebSocket message received: ${type}`);
+        // Safely try to parse the JSON data
+        let data;
+        try {
+          data = JSON.parse(event.data);
+        } catch (parseError) {
+          console.error("Failed to parse WebSocket message:", parseError, event.data);
+          return;
+        }
         
+        // Handle different message types - optimized with shorter type names
+        const type = data.type || data.t; // Support both formats
+        const payload = data.data || data.d || {}; // Support both formats, default to empty object
+        
+        // Log the message type
+        if (type) {
+          console.log(`WebSocket message received: ${type}`);
+        } else {
+          console.warn("Received WebSocket message without type:", data);
+          return; // Skip processing messages without a type
+        }
+        
+        // Process based on message type
         switch (type) {
           case 'NEW_MESSAGE':
           case 'MSG': // Shortened format
@@ -108,23 +123,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             break;
             
           case 'TYPING':
-            // Handle typing indicators
-            const isTyping = payload.isTyping;
-            const senderId = payload.senderId;
+            // Extract typing data with fallbacks
+            const isTyping = payload.isTyping !== undefined ? payload.isTyping : false;
+            const senderId = payload.senderId || payload.sender_id || '';
             
-            // Call the typing status handler
-            handleTypingStatus(senderId, isTyping);
+            // Only process if we have a valid sender ID
+            if (senderId) {
+              handleTypingStatus(senderId, isTyping);
+            } else {
+              console.warn("Typing event missing sender ID:", payload);
+            }
             break;
             
           case 'CONN': // Connection confirmation
-            console.log("WebSocket connection confirmed with ID:", payload.id);
+            // Log confirmation, but don't fail if id is missing
+            console.log("WebSocket connection confirmed:", payload.id || 'unknown ID');
             break;
             
           default:
             console.log("Unknown message type:", type);
         }
       } catch (error) {
-        console.error("Failed to parse WebSocket message:", error);
+        console.error("Error processing WebSocket message:", error);
+        // Continue running even after an error - don't crash the WebSocket connection
       }
     };
     
@@ -179,48 +200,156 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [activeContact]);
 
-  // Handle incoming messages
-  const handleNewMessage = (message: Message) => {
-    // Add message to state
-    addMessage(message);
-    
-    // Show notification if message is from someone other than active contact
-    if (activeContact?.id !== message.senderId) {
-      const sender = contacts.find(c => c.id === message.senderId);
-      toast({
-        title: `New message from ${sender?.username || 'Unknown'}`,
-        description: message.content.length > 30 ? `${message.content.slice(0, 30)}...` : message.content,
-      });
+  // Handle incoming messages with robust error handling
+  const handleNewMessage = (message: any) => {
+    try {
+      // Validate that we received a proper message object to prevent crashes
+      if (!message || typeof message !== 'object') {
+        console.error("Received invalid message object:", message);
+        return;
+      }
+      
+      // Check for required fields to ensure it's a valid message
+      if (!message.id || (!message.senderId && !message.sender_id)) {
+        console.error("Message missing required fields:", message);
+        return;
+      }
+      
+      // Normalize data format to handle both camelCase and snake_case
+      const normalizedMessage: Message = {
+        ...message,
+        // Ensure sender ID is consistent
+        senderId: message.senderId || message.sender_id,
+        // Ensure receiver ID is consistent
+        receiverId: message.receiverId || message.receiver_id,
+        // Ensure content exists
+        content: message.content || '',
+        // Ensure createdAt exists as valid date string
+        createdAt: message.createdAt || message.created_at || new Date().toISOString(),
+        // Ensure updatedAt exists as valid date string
+        updatedAt: message.updatedAt || message.updated_at || new Date().toISOString()
+      };
+      
+      // Add message to state
+      addMessage(normalizedMessage);
+      
+      // Show notification if message is from someone other than active contact
+      if (activeContact?.id !== normalizedMessage.senderId) {
+        // Look up sender in contacts
+        const sender = contacts.find(c => c.id === normalizedMessage.senderId);
+        
+        // Show toast notification with sender name and partial message
+        toast({
+          title: `New message from ${sender?.username || 'Unknown'}`,
+          description: normalizedMessage.content && normalizedMessage.content.length > 30 
+            ? `${normalizedMessage.content.slice(0, 30)}...` 
+            : (normalizedMessage.content || 'New message'),
+        });
+      }
+    } catch (error) {
+      console.error("Error handling new message:", error, "message:", message);
     }
   };
 
   // Handle message status updates
-  const handleMessagesRead = (data: { readBy: string, messages: string[] }) => {
-    updateMessageStatus(data.messages, "read");
+  const handleMessagesRead = (data: any) => {
+    // Safely handle different message formats and prevent errors that crash the interface
+    try {
+      // Guard against null or undefined data
+      if (!data) {
+        console.error("Received empty data in handleMessagesRead");
+        return;
+      }
+      
+      // Check the shape of the data and handle different possible formats
+      const messageIds = data.messages || data.messageIds || [];
+      
+      // Make sure it's actually an array before trying to use it
+      if (!Array.isArray(messageIds)) {
+        console.error("Expected messages array but received:", typeof messageIds, data);
+        return;
+      }
+      
+      // Only update if we have actual message IDs
+      if (messageIds.length > 0) {
+        updateMessageStatus(messageIds, "read");
+      }
+    } catch (error) {
+      console.error("Error in handleMessagesRead:", error, "data:", data);
+    }
   };
 
-  // Handle incoming contact requests
-  const handleContactRequest = (request: ContactRequest & { sender: User }) => {
-    setPendingRequests(prev => [...prev, request]);
-    
-    toast({
-      title: "New contact request",
-      description: `${request.sender.username} sent you a contact request`,
-    });
+  // Handle incoming contact requests with error prevention
+  const handleContactRequest = (requestData: any) => {
+    try {
+      // Validate input data
+      if (!requestData || typeof requestData !== 'object') {
+        console.error("Received invalid contact request:", requestData);
+        return;
+      }
+      
+      // Check if we have both the request and sender info
+      if (!requestData.id || !requestData.sender) {
+        console.error("Contact request missing required fields:", requestData);
+        return;
+      }
+      
+      // Make sure the sender has a username for the notification
+      const senderUsername = requestData.sender.username || 'Someone';
+      
+      // Add to pending requests
+      setPendingRequests(prev => [...prev, requestData]);
+      
+      // Show notification
+      toast({
+        title: "New contact request",
+        description: `${senderUsername} sent you a contact request`,
+      });
+    } catch (error) {
+      console.error("Error handling contact request:", error, "data:", requestData);
+    }
   };
 
-  // Handle accepted contact requests
-  const handleContactRequestAccepted = (data: { request: ContactRequest, contact: User }) => {
-    // Add the new contact directly to the contacts list
-    setContacts(prev => [...prev, data.contact]);
-    
-    // Remove from pending requests if present
-    setPendingRequests(prev => prev.filter(req => req.id !== data.request.id));
-    
-    toast({
-      title: "Contact request accepted",
-      description: `${data.contact.username} accepted your contact request`,
-    });
+  // Handle accepted contact requests with error prevention
+  const handleContactRequestAccepted = (data: any) => {
+    try {
+      // Validate input data
+      if (!data || typeof data !== 'object') {
+        console.error("Received invalid contact request acceptance:", data);
+        return;
+      }
+      
+      // Check if we have both the request and contact info
+      if (!data.request || !data.contact) {
+        console.error("Contact request acceptance missing required fields:", data);
+        return;
+      }
+      
+      // Make sure the contact has a username for the notification
+      const contactUsername = data.contact.username || 'Someone';
+      
+      // Add the new contact directly to the contacts list
+      setContacts(prev => {
+        // Check if contact already exists to prevent duplicates
+        if (prev.some(c => c.id === data.contact.id)) {
+          return prev;
+        }
+        return [...prev, data.contact];
+      });
+      
+      // Remove from pending requests if present
+      if (data.request.id) {
+        setPendingRequests(prev => prev.filter(req => req.id !== data.request.id));
+      }
+      
+      // Show notification
+      toast({
+        title: "Contact request accepted",
+        description: `${contactUsername} accepted your contact request`,
+      });
+    } catch (error) {
+      console.error("Error handling contact request acceptance:", error, "data:", data);
+    }
   };
 
   // Refresh contacts list
@@ -341,26 +470,44 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Handle typing indicator update from server
-  const handleTypingStatus = (senderId: string, isTyping: boolean) => {
-    setTypingContacts(prev => ({
-      ...prev,
-      [senderId]: isTyping
-    }));
-
-    // If typing indicator is set to false, clear it after 1.5 seconds
-    // This ensures a smooth UX without abrupt disappearance
-    if (!isTyping) {
-      setTimeout(() => {
-        setTypingContacts(prev => {
-          if (prev[senderId] === false) {
-            const newState = {...prev};
-            delete newState[senderId];
-            return newState;
-          }
-          return prev;
-        });
-      }, 1500);
+  // Handle typing indicator update from server with robust error handling
+  const handleTypingStatus = (senderId: any, isTyping: any) => {
+    try {
+      // Validate sender ID
+      if (!senderId || typeof senderId !== 'string') {
+        console.error("Invalid sender ID in typing status:", senderId);
+        return;
+      }
+      
+      // Validate isTyping (coerce to boolean if needed)
+      const typingStatus = isTyping === true || isTyping === 'true' || isTyping === 1;
+      
+      // Update typing contacts state
+      setTypingContacts(prev => ({
+        ...prev,
+        [senderId]: typingStatus
+      }));
+      
+      // If typing indicator is set to false, clear it after 1.5 seconds
+      // This ensures a smooth UX without abrupt disappearance
+      if (!typingStatus) {
+        setTimeout(() => {
+          setTypingContacts(prev => {
+            // Additional null/undefined check for robustness
+            if (!prev) return {};
+            
+            // Check if the typing status is still false
+            if (prev[senderId] === false) {
+              const newState = {...prev};
+              delete newState[senderId];
+              return newState;
+            }
+            return prev;
+          });
+        }, 1500);
+      }
+    } catch (error) {
+      console.error("Error handling typing status:", error, "senderId:", senderId, "isTyping:", isTyping);
     }
   };
 
