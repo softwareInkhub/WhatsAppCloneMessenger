@@ -29,25 +29,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log("AuthProvider - Checking localStorage for user data");
+    
     // Try to load user from localStorage on initial load
     const storedUser = localStorage.getItem("whatspe_user");
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
+        console.log("Found user in localStorage, restoring session:", parsedUser);
         setCurrentUser(parsedUser);
         setIsAuthenticated(true);
       } catch (error) {
         console.error("Failed to parse stored user:", error);
         localStorage.removeItem("whatspe_user");
       }
+    } else {
+      console.log("No user found in localStorage");
     }
+    
     setIsLoading(false);
   }, []);
 
   const login = (user: User) => {
+    console.log("Logging in user:", user);
     setCurrentUser(user);
     setIsAuthenticated(true);
+    
+    // Save user and their phone number to localStorage
     localStorage.setItem("whatspe_user", JSON.stringify(user));
+    localStorage.setItem("whatspe_phone", user.phoneNumber);
+    
+    // Clear the "new user" flag since they're now logged in
+    setIsNewUserState(false);
+    localStorage.removeItem("whatspe_is_new_user");
+    
     toast({
       title: "Logged in successfully",
       description: `Welcome ${user.username}!`,

@@ -21,10 +21,16 @@ export default function Chat() {
   
   // Redirect to login if not authenticated
   useEffect(() => {
-    if (!isAuthenticated) {
-      setLocation("/");
+    console.log("Chat page - Auth state:", { isAuthenticated, currentUser });
+    
+    // Check both the auth context and localStorage for persistence
+    const hasUserInStorage = !!localStorage.getItem("whatspe_user");
+    
+    if (!isAuthenticated && !hasUserInStorage) {
+      console.log("Not authenticated, redirecting to login");
+      window.location.href = "/";
     }
-  }, [isAuthenticated, setLocation]);
+  }, [isAuthenticated, currentUser]);
   
   // Handle contact selection
   const handleSelectContact = (contact: User) => {
@@ -55,12 +61,28 @@ export default function Chat() {
   
   // Handle logout
   const handleLogout = () => {
+    console.log("Logging out");
     logout();
-    setLocation("/");
+    window.location.href = "/";
   };
   
-  if (!isAuthenticated || !currentUser) {
-    return null; // Will redirect in useEffect
+  // Check if we need to load user from localStorage
+  const storedUserStr = localStorage.getItem("whatspe_user");
+  let storedUser = null;
+  
+  try {
+    if (storedUserStr && (!isAuthenticated || !currentUser)) {
+      storedUser = JSON.parse(storedUserStr);
+      console.log("Found user in localStorage:", storedUser);
+    }
+  } catch (error) {
+    console.error("Failed to parse stored user:", error);
+  }
+  
+  // If neither authenticated context nor localStorage has the user, show nothing (will redirect)
+  if ((!isAuthenticated || !currentUser) && !storedUser) {
+    console.log("No user found in context or localStorage, will redirect");
+    return null;
   }
   
   return (
@@ -97,8 +119,8 @@ export default function Chat() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium">Account</h3>
-                  <p className="text-sm text-gray-500">{currentUser.username}</p>
-                  <p className="text-xs text-gray-400">{currentUser.phoneNumber}</p>
+                  <p className="text-sm text-gray-500">{currentUser?.username || storedUser?.username}</p>
+                  <p className="text-xs text-gray-400">{currentUser?.phoneNumber || storedUser?.phoneNumber}</p>
                 </div>
                 <Button variant="outline" onClick={() => setShowSettingsModal(false)}>
                   Edit Profile
