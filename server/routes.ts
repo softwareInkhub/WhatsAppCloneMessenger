@@ -2,6 +2,7 @@ import express, { type Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
+import { sendOptimized, broadcastOptimized } from "./utils/websocket-optimization";
 import { 
   insertUserSchema, 
   insertMessageSchema, 
@@ -89,11 +90,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       clients.set(userId, ws);
       console.log(`User ${userId} connected to WebSocket`);
       
-      // Send a welcome message to confirm connection - with minimal payload
-      ws.send(JSON.stringify({
-        t: 'CONN', // Shortened type for bandwidth efficiency
-        d: { id: userId } // Minimal data needed
-      }));
+      // Send a welcome message to confirm connection - with optimized payload
+      sendOptimized(ws, 'CONNECTION', { id: userId });
       
       // Handle client disconnect
       ws.on('close', () => {
@@ -112,27 +110,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // This enables direct client-to-client communication without REST API overhead
           switch(data.t) {
             case 'TYPING':
-              // Forward typing indicator to the recipient
+              // Forward typing indicator to the recipient using optimized transmission
               const recipientWs = clients.get(data.d.recipientId);
               if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
-                recipientWs.send(JSON.stringify({
-                  t: 'TYPING',
-                  d: { senderId: userId, isTyping: data.d.isTyping }
-                }));
+                sendOptimized(recipientWs, 'TYPING', { 
+                  senderId: userId, 
+                  isTyping: data.d.isTyping 
+                });
               }
               break;
               
             case 'READ_RECEIPT':
-              // Forward read receipt to the original sender
+              // Forward read receipt to the original sender with optimized payload
               const senderWs = clients.get(data.d.senderId);
               if (senderWs && senderWs.readyState === WebSocket.OPEN) {
-                senderWs.send(JSON.stringify({
-                  t: 'READ_RECEIPT',
-                  d: { 
-                    readBy: userId,
-                    messageIds: data.d.messageIds 
-                  }
-                }));
+                sendOptimized(senderWs, 'MESSAGES_READ', { 
+                  readBy: userId,
+                  messageIds: data.d.messageIds 
+                });
               }
               break;
           }
@@ -577,15 +572,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return message;
   }
 
-  // WebSocket notification function for real-time delivery
+  // WebSocket notification function for real-time delivery using optimized transmission
   async function notifyReceiverViaWebSocket(receiverId: string, message: any) {
     const receiverWs = clients.get(receiverId);
     if (receiverWs && receiverWs.readyState === WebSocket.OPEN) {
-      // Send minimal data for bandwidth efficiency
-      receiverWs.send(JSON.stringify({
-        t: 'MSG', // Shortened type name
-        d: message // Message data
-      }));
+      // Use compression for larger messages (e.g., images or long text)
+      const useCompression = message.content && message.content.length > 1024;
+      
+      // Send optimized data with potential compression for efficiency
+      await sendOptimized(
+        receiverWs, 
+        'NEW_MESSAGE', 
+        message, 
+        useCompression
+      );
     }
   }
   
@@ -671,18 +671,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return updatedMessages;
   }
   
-  // Notification function for read status using WebSocket
+  // Notification function for read status using optimized WebSocket
   async function notifyReadStatusViaWebSocket(senderId: string, readerId: string, messageIds: string[]) {
     const senderWs = clients.get(senderId);
     if (senderWs && senderWs.readyState === WebSocket.OPEN) {
-      // Use shortened format for efficiency
-      senderWs.send(JSON.stringify({
-        t: 'READ', // Short type name
-        d: {
+      // Use optimized payload delivery for read receipts
+      await sendOptimized(
+        senderWs, 
+        'MESSAGES_READ', 
+        {
           readBy: readerId,
-          messages: messageIds
+          messageIds: messageIds
         }
-      }));
+      );
     }
   }
   
@@ -711,7 +712,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // 8. WebSocket webhook for message events (used by external integrations)
-  router.post('/webhooks/messages', (req: Request, res: Response) => {
+  router.post('/webhooks/messages', async (req: Request, res: Response) => {
     try {
       const message = req.body;
       
@@ -720,13 +721,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return sendError(res, 400, 'Invalid message format');
       }
       
-      // Forward to receiver's websocket connection
+      // Forward to receiver's websocket connection with optimized delivery
       const receiverWs = clients.get(message.receiverId);
-      if (receiverWs && receiverWs.readyState === 1) {
-        receiverWs.send(JSON.stringify({
-          type: 'WEBHOOK_MESSAGE',
-          data: message
-        }));
+      if (receiverWs && receiverWs.readyState === WebSocket.OPEN) {
+        await sendOptimized(
+          receiverWs,
+          'WEBHOOK_MESSAGE',
+          message
+        );
       }
       
       res.status(200).json({ success: true });
