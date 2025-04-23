@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
-import { verifyOTP } from "@/lib/api";
+import { verifyOTP, requestOTP } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { OTPInput } from "@/components/ui/otp-input";
 import { Button } from "@/components/ui/button";
@@ -75,12 +75,34 @@ export default function OTPVerificationForm() {
     window.location.href = "/";
   };
 
+  const resendMutation = useMutation({
+    mutationFn: requestOTP,
+    onSuccess: (data) => {
+      toast({
+        title: "OTP Resent",
+        description: "Please check your phone for the new verification code",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to resend OTP",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleResendOTP = () => {
-    // In a real app, would call the request OTP API again
-    toast({
-      title: "OTP Resent",
-      description: "Please check your phone for the new code",
-    });
+    if (!phoneNumber) {
+      toast({
+        title: "Error",
+        description: "Phone number is missing. Please go back to the login page.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    resendMutation.mutate({ phoneNumber });
   };
 
   return (
