@@ -3,6 +3,7 @@ import { useAuth } from "./AuthContext";
 import { Message, User, ContactRequest } from "@shared/schema";
 import { getContacts, getPendingContactRequests, getMessages } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { safeDate } from "@/lib/utils";
 
 interface ChatContextType {
   contacts: User[];
@@ -256,8 +257,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (exists) return prev;
       
       return [...prev, message].sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        const dateA = safeDate(a.createdAt).getTime();
+        const dateB = safeDate(b.createdAt).getTime();
         return dateA - dateB;
       });
     });

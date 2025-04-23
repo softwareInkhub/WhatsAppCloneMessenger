@@ -4,6 +4,7 @@ import { User } from "@shared/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useChat } from "@/contexts/ChatContext";
+import { safeDate } from "@/lib/utils";
 
 interface ContactItemProps {
   contact: User;
@@ -21,9 +22,11 @@ export default function ContactItem({ contact, onClick }: ContactItemProps) {
   // Find latest message with this contact
   const latestMessage = messages.filter(
     (message) => message.senderId === contact.id || message.receiverId === contact.id
-  ).sort((a, b) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  )[0];
+  ).sort((a, b) => {
+    const dateA = safeDate(a.createdAt).getTime();
+    const dateB = safeDate(b.createdAt).getTime();
+    return dateB - dateA;
+  })[0];
   
   // Format message preview
   const getMessagePreview = () => {
@@ -64,7 +67,7 @@ export default function ContactItem({ contact, onClick }: ContactItemProps) {
   };
   
   // Check if user is online (last seen within 5 minutes)
-  const isOnline = contact.lastSeen && new Date(contact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5;
+  const isOnline = contact.lastSeen && safeDate(contact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5;
   
   return (
     <div 
@@ -85,7 +88,7 @@ export default function ContactItem({ contact, onClick }: ContactItemProps) {
         <div className="flex justify-between items-baseline">
           <span className="font-medium truncate">{contact.username}</span>
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {latestMessage && latestMessage.createdAt ? formatTime(new Date(latestMessage.createdAt)) : ""}
+            {latestMessage && latestMessage.createdAt ? formatTime(safeDate(latestMessage.createdAt)) : ""}
           </span>
         </div>
         <div className="flex justify-between items-center">
