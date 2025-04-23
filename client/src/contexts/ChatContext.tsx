@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { useAuth } from "./AuthContext";
 import { Message, User, ContactRequest } from "@shared/schema";
-import { getContacts, getPendingContactRequests, getMessages } from "@/lib/api";
+import { getContacts, getPendingContactRequests, getMessages, clearCachedData } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { safeDate } from "@/lib/utils";
+import * as messageCache from "@/lib/messageCache";
 
 interface ChatContextType {
   contacts: User[];

@@ -33,7 +33,7 @@ export default function LoginForm() {
   });
 
   const mutation = useMutation({
-    mutationFn: requestOTP,
+    mutationFn: (values: LoginFormValues) => requestOTP(values.phoneNumber),
     onSuccess: (data) => {
       console.log("OTP request successful:", data);
       setIsLoading(false);

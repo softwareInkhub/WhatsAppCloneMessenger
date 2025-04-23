@@ -43,7 +43,7 @@ export default function RegistrationForm() {
   });
 
   const mutation = useMutation({
-    mutationFn: registerUser,
+    mutationFn: (userData: any) => registerUser(userData),
     onSuccess: (data) => {
       setIsLoading(false);
       login(data);

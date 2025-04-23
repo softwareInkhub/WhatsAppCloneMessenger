@@ -15,7 +15,8 @@ export default function OTPVerificationForm() {
   const { toast } = useToast();
 
   const mutation = useMutation({
-    mutationFn: verifyOTP,
+    mutationFn: (params: {phoneNumber: string, verificationCode: string}) => 
+      verifyOTP(params.phoneNumber, params.verificationCode),
     onSuccess: (data) => {
       setIsLoading(false);
       
@@ -91,7 +92,7 @@ export default function OTPVerificationForm() {
   };
 
   const resendMutation = useMutation({
-    mutationFn: (data: { phoneNumber: string }) => requestOTP(data),
+    mutationFn: (data: { phoneNumber: string }) => requestOTP(data.phoneNumber),
     onSuccess: (data) => {
       toast({
         title: "OTP Resent",

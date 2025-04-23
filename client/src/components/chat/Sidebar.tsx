@@ -8,6 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { acceptContactRequest, rejectContactRequest } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import ContactItem from "./ContactItem";
+import { SearchBar } from "./SearchBar";
 import { format } from "date-fns";
 import { User } from "@shared/schema";
 
@@ -149,19 +150,7 @@ export default function Sidebar({
       
       {/* Search Box */}
       <div className="p-2 bg-white dark:bg-dark-surface">
-        <div className="relative">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-3 top-2.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <Input
-            type="text"
-            placeholder="Search or start new chat"
-            className="w-full py-2 pl-10 pr-4 rounded-lg bg-gray-100 dark:bg-gray-800"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+        <SearchBar />
       </div>
       
       {/* Contacts List */}

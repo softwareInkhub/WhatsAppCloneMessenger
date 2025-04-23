@@ -4,6 +4,9 @@ A scalable, cloud-native messaging platform with real-time communication capabil
 
 ## Latest Improvements
 
+- 🔍 Added powerful message search with local and server-side capabilities
+- 📱 Implemented client-side caching using IndexedDB for offline search
+- 🖱️ Created intuitive search UI with result highlighting and keyboard navigation
 - 🚀 Enhanced WebSocket message handling for improved reliability
 - 🛡️ Added robust error recovery to prevent interface crashes
 - ⚡ Optimized message format compatibility between clients
@@ -74,8 +77,15 @@ The system follows a hybrid client-server architecture with these main component
 │        │                                                             │
 │        │           ┌────────────┐      ┌─────────────────────────┐  │
 │        │           │            │      │                         │  │
-│        └──────────▶│ WebSocket  │─────▶│  Chat Context           │  │
-│                    │ Client     │      │  (Real-time State)      │  │
+│        ├──────────▶│ WebSocket  │─────▶│  Chat Context           │  │
+│        │           │ Client     │      │  (Real-time State)      │  │
+│        │           │            │      │                         │  │
+│        │           └────────────┘      └─────────────────────────┘  │
+│        │                                                             │
+│        │           ┌────────────┐      ┌─────────────────────────┐  │
+│        │           │            │      │                         │  │
+│        └──────────▶│ IndexedDB  │─────▶│  Message Cache          │  │
+│                    │ Storage    │      │  (Offline Data)         │  │
 │                    │            │      │                         │  │
 │                    └────────────┘      └─────────────────────────┘  │
 │                                                                     │
@@ -105,6 +115,7 @@ Key messaging functions are designed to be deployable as standalone AWS Lambda f
 - **wouter**: Lightweight routing
 - **Tailwind CSS & shadcn/ui**: Styling
 - **WebSocket API**: Real-time client-server communication
+- **IndexedDB**: Client-side message and search caching
 
 ### Development & Tooling
 - **Vite**: Build tool and development server
@@ -141,12 +152,21 @@ Key messaging functions are designed to be deployable as standalone AWS Lambda f
 - Offline message queueing
 - Enhanced error recovery for uninterrupted chat experience
 
+### Advanced Message Search
+- Hybrid search system combining local IndexedDB cache and server-side search
+- Client-side search with immediate results from local cache
+- Server-side search with advanced filtering including date ranges and case sensitivity
+- Highlighted search results with keyword matching
+- Keyboard navigation for search results
+- Cache-first architecture for offline capability and performance
+
 ### Performance Optimizations
 - WebSocket payload compression
 - Message batching
 - Optimized data structures for network transmission
 - Persistent connections with keepalive
 - Lambda-ready functions for serverless scalability
+- Client-side caching with IndexedDB for message history
 
 ## API Reference
 
@@ -453,6 +473,48 @@ Response:
 ]
 ```
 
+#### Search Messages
+```
+GET /api/messages/search?query=hello&userId=39ee1646-945c-4849-a903-178b5b6b5114
+```
+Optional query parameters:
+- `caseSensitive`: boolean - Search with case sensitivity
+- `wholeWord`: boolean - Match whole words only
+- `dateRange`: string - ISO dates for search range (start,end)
+- `limit`: number - Maximum results to return
+
+Response:
+```json
+[
+  {
+    "message": {
+      "id": "c6d448de-d7b6-418b-a799-54ce840fb392",
+      "senderId": "39ee1646-945c-4849-a903-178b5b6b5114",
+      "receiverId": "e3822bd8-0868-4fca-ba55-36aa538cf386",
+      "content": "Hello, how are you?",
+      "type": "text",
+      "status": "read",
+      "createdAt": "2025-04-23T07:17:25.828Z",
+      "updatedAt": "2025-04-23T07:17:25.828Z"
+    },
+    "contact": {
+      "id": "e3822bd8-0868-4fca-ba55-36aa538cf386",
+      "username": "baba",
+      "email": "debugadmin@example.com",
+      "phoneNumber": "8002499033",
+      "profilePicture": null,
+      "status": "Hey, I'm using WhatsPe!",
+      "lastSeen": "2025-04-23T06:30:50.130Z"
+    },
+    "highlight": {
+      "before": "",
+      "match": "Hello",
+      "after": ", how are you?"
+    }
+  }
+]
+```
+
 #### Webhook for External Message Integration
 ```
 POST /api/webhooks/messages
@@ -642,6 +704,38 @@ export const handler = async (event, context) => {
 ```
 
 ## Performance Optimizations
+
+### Client-Side Caching Architecture
+- IndexedDB-based persistent cache for messages
+- Dual-layer search implementation (local + server)
+- Automatic synchronization of new messages to cache
+- Cache invalidation strategies for conversation updates
+- Indexed search fields for optimal query performance
+
+```typescript
+// Message cache database structure
+interface MessageCacheDB {
+  messages: {
+    key: string; // message ID
+    value: Message;
+    indexes: {
+      'by-conversation': string; // "senderId:receiverId" or "receiverId:senderId"
+      'by-sender': string;
+      'by-receiver': string;
+      'by-content': string; // for text search
+      'by-timestamp': Date;
+    };
+  };
+  searches: {
+    key: string; // search query
+    value: {
+      query: string;
+      results: Array<{message: Message, contact: User, highlight: HighlightResult}>;
+      timestamp: Date;
+    };
+  };
+}
+```
 
 ### WebSocket Payload Optimization
 - Property name shortening (e.g., `senderId` -> `s`)

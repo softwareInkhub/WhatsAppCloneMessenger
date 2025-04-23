@@ -672,6 +672,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
   
   // Notification function for read status using optimized WebSocket
+  // Global message search across all conversations
+  async function searchMessages(userId: string, query: string): Promise<Array<{message: any, contact: any}>> {
+    try {
+      if (!query || query.trim().length < 2) {
+        return [];
+      }
+      
+      console.log(`Searching for "${query}" in user ${userId}'s messages`);
+      
+      // Get all the user's contacts
+      const contacts = await storage.getContacts(userId);
+      
+      // For each contact, search through their conversation with the user
+      const searchResults: Array<{message: any, contact: any}> = [];
+      
+      // Import search utility functions
+      const { filterMessages } = await import('./utils/search-helper');
+      
+      // Search through each conversation in parallel for better performance
+      const searchPromises = contacts.map(async (contact) => {
+        const messages = await storage.getMessagesByUsers(userId, contact.id);
+        
+        // Use advanced filtering with our utility function
+        const matchingMessages = filterMessages(messages, query, {
+          caseSensitive: false,
+          wholeWord: false,
+          includeMetadata: false,
+          limit: 50
+        });
+        
+        matchingMessages.forEach(message => {
+          searchResults.push({
+            message,
+            contact
+          });
+        });
+      });
+      
+      await Promise.all(searchPromises);
+      
+      // Sort by date (newest first)
+      searchResults.sort((a, b) => {
+        const dateA = new Date(a.message.createdAt).getTime();
+        const dateB = new Date(b.message.createdAt).getTime();
+        return dateB - dateA;
+      });
+      
+      // Limit to top 50 results to prevent large payloads
+      const limitedResults = searchResults.slice(0, 50);
+      
+      console.log(`Found ${limitedResults.length} messages matching "${query}"`);
+      
+      return limitedResults;
+    } catch (error) {
+      console.error("Error searching messages:", error);
+      return [];
+    }
+  }
+  
   async function notifyReadStatusViaWebSocket(senderId: string, readerId: string, messageIds: string[]) {
     const senderWs = clients.get(senderId);
     if (senderWs && senderWs.readyState === WebSocket.OPEN) {
@@ -712,6 +771,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // 8. WebSocket webhook for message events (used by external integrations)
+  // Message search endpoint
+  router.get('/messages/search', async (req: Request, res: Response) => {
+    try {
+      const { userId, query } = req.query;
+      
+      if (!userId || typeof userId !== 'string') {
+        return sendError(res, 401, 'User ID is required');
+      }
+      
+      if (!query || typeof query !== 'string') {
+        return sendError(res, 400, 'Search query is required');
+      }
+      
+      // Execute the search
+      const results = await searchMessages(userId, query);
+      
+      // Return results with metadata for client-side rendering
+      res.status(200).json({
+        query,
+        totalResults: results.length,
+        results
+      });
+    } catch (error) {
+      console.error('Error searching messages:', error);
+      sendError(res, 500, 'Failed to search messages');
+    }
+  });
+  
   router.post('/webhooks/messages', async (req: Request, res: Response) => {
     try {
       const message = req.body;
