@@ -12,7 +12,7 @@ import { safeDate } from '@/lib/utils';
 
 export function SearchBar() {
   const { currentUser } = useAuth();
-  const { setActiveContact } = useChat();
+  const { setActiveContact, highlightMessage } = useChat();
   const { search, clearSearch, results, isLoading, totalResults, query } = useMessageSearch();
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);

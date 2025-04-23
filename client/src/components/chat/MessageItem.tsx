@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChat } from "@/contexts/ChatContext";
 import { Message } from "@shared/schema";
 import { formatMessageTime, safeDate } from "@/lib/utils";
 
@@ -10,7 +11,20 @@ interface MessageItemProps {
 
 export default function MessageItem({ message }: MessageItemProps) {
   const { currentUser } = useAuth();
+  const { highlightedMessageId } = useChat();
+  const messageRef = useRef<HTMLDivElement>(null);
   const isSent = message.senderId === currentUser?.id;
+  const isHighlighted = message.id === highlightedMessageId;
+  
+  // Scroll to the message when it's highlighted
+  useEffect(() => {
+    if (isHighlighted && messageRef.current) {
+      messageRef.current.scrollIntoView({ 
+        behavior: "smooth", 
+        block: "center" 
+      });
+    }
+  }, [isHighlighted]);
   
   // Format time for display using our utility function
   const formatTime = (date: Date | string | null | undefined) => {
@@ -20,11 +34,12 @@ export default function MessageItem({ message }: MessageItemProps) {
   return (
     <div className={`flex items-end ${isSent ? "justify-end" : ""}`}>
       <div
+        ref={messageRef}
         className={`rounded-lg p-3 max-w-[80%] shadow-sm ${
           isSent
             ? "bg-chat-sent dark:bg-primary-dark text-gray-800 dark:text-white"
             : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
-        }`}
+        } ${isHighlighted ? "ring-2 ring-orange-400 dark:ring-orange-500 animate-pulse" : ""}`}
       >
         {/* Message content based on type */}
         {message.type === "text" && <p>{message.content}</p>}

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import { useAuth } from "./AuthContext";
 import { Message, User, ContactRequest } from "@shared/schema";
 import { getContacts, getPendingContactRequests, getMessages, clearCachedData } from "@/lib/api";
@@ -12,6 +12,7 @@ interface ChatContextType {
   messages: Message[];
   pendingRequests: (ContactRequest & { sender?: User })[];
   typingContacts: Record<string, boolean>; // Map of userId -> isTyping status
+  highlightedMessageId: string | null; // Message to highlight from search
   loading: {
     contacts: boolean;
     messages: boolean;
@@ -25,6 +26,7 @@ interface ChatContextType {
   addMessage: (message: Message) => void;
   updateMessageStatus: (messageIds: string[], status: "delivered" | "read") => void;
   sendTypingStatus: (isTyping: boolean) => void; // Send typing status to active contact
+  highlightMessage: (messageId: string | null) => void; // Highlight specific message
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -37,6 +39,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [pendingRequests, setPendingRequests] = useState<(ContactRequest & { sender?: User })[]>([]);
   const [typingContacts, setTypingContacts] = useState<Record<string, boolean>>({});
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [loading, setLoading] = useState({
     contacts: false,
     messages: false,
@@ -531,6 +534,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // We don't need this secondary WebSocket handler since we already updated the main one
 
+  // Define the highlightMessage function
+  const highlightMessage = useCallback((messageId: string | null) => {
+    setHighlightedMessageId(messageId);
+    
+    // Auto-clear highlight after 3 seconds
+    if (messageId) {
+      setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 3000);
+    }
+  }, []);
+
   return (
     <ChatContext.Provider
       value={{
@@ -539,6 +554,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messages,
         pendingRequests,
         typingContacts,
+        highlightedMessageId,
         loading,
         setActiveContact,
         setContacts,
@@ -547,7 +563,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         refreshPendingRequests,
         addMessage,
         updateMessageStatus,
-        sendTypingStatus
+        sendTypingStatus,
+        highlightMessage
       }}
     >
       {children}
