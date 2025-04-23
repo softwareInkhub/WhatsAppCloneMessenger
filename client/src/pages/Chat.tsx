@@ -96,11 +96,13 @@ export default function Chat() {
           isMobile={isMobile}
         />
         
-        {/* Main Chat Area */}
-        <ChatArea
-          onBackToContacts={handleBackToContacts}
-          isMobile={isMobile}
-        />
+        {/* Main Chat Area - Hide it initially on mobile unless there's an active contact */}
+        {(!isMobile || activeContact) && (
+          <ChatArea
+            onBackToContacts={handleBackToContacts}
+            isMobile={isMobile}
+          />
+        )}
         
         {/* Add Contact Modal */}
         <AddContactModal

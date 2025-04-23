@@ -176,6 +176,16 @@ export default function Sidebar({
           </div>
         )}
         
+        {/* Mobile welcome message (only show if there are contacts but nothing is displayed in main area) */}
+        {isMobile && contacts.length > 0 && (
+          <div className="mt-8 mx-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 text-center">
+            <h3 className="font-medium mb-2">Select a contact to start chatting</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Tap on any contact to open your conversation
+            </p>
+          </div>
+        )}
+        
         {/* Pending contact requests */}
         {pendingRequests.filter(req => req.receiverId === currentUser?.id).map((request) => (
           <div key={request.id} className="p-3 border-b border-gray-100 dark:border-gray-800 flex items-center bg-gray-50 dark:bg-gray-800">
