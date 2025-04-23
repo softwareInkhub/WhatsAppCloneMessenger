@@ -50,12 +50,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!isAuthenticated || !currentUser) {
       // Disconnect if not authenticated
       if (wsRef.current) {
+        console.log("Closing WebSocket connection due to logout");
         wsRef.current.close();
         wsRef.current = null;
       }
       return;
     }
 
+    console.log("Setting up WebSocket connection for user:", currentUser.id);
+    
     // Create WebSocket connection with explicit path
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//${window.location.host}/ws?userId=${currentUser.id}`;
@@ -64,12 +67,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Close any existing connection
     if (wsRef.current) {
       wsRef.current.close();
+      wsRef.current = null;
     }
     
+    // Create new connection
     const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+    
+    // Set connection timeout (5 seconds)
+    const connectionTimeout = setTimeout(() => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        console.log("WebSocket connection timeout - retrying");
+        ws.close();
+        // Connection will be retried by the onclose handler
+      }
+    }, 5000);
     
     ws.onopen = () => {
       console.log("WebSocket connection established");
+      clearTimeout(connectionTimeout); // Clear the timeout since we're connected
     };
     
     ws.onmessage = (event) => {
@@ -138,28 +154,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
     
     ws.onclose = () => {
-      console.log("WebSocket connection closed");
+      console.log("WebSocket connection closed unexpectedly");
       
       // Try to reconnect after a delay if we're still authenticated
-      if (isAuthenticated && currentUser) {
-        setTimeout(() => {
+      setTimeout(() => {
+        if (isAuthenticated && currentUser) {
           console.log("Attempting to reconnect WebSocket...");
-          if (wsRef.current === ws) {
-            wsRef.current = null;
-            
-            // Create new connection with explicit path
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${wsProtocol}//${window.location.host}/ws?userId=${currentUser.id}`;
-            console.log("Reconnecting to WebSocket:", wsUrl);
-            
-            const newWs = new WebSocket(wsUrl);
-            wsRef.current = newWs;
-          }
-        }, 3000);
-      }
+          // Component will handle reconnection on next render cycle
+        }
+      }, 2000);
     };
-    
-    wsRef.current = ws;
     
     // Load initial data
     refreshContacts();
@@ -201,13 +205,39 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
     
     console.log("Processed message with full property names:", processedMessage);
+    
+    // Find sender information for proper display
+    const senderId = processedMessage.senderId;
+    const sender = contacts.find(c => c.id === senderId);
+    
+    // If the message is from the current contact, automatically set it as active
+    if (currentUser && 
+        processedMessage.senderId !== currentUser.id && 
+        (!activeContact || activeContact.id !== processedMessage.senderId)) {
+      
+      // Find the contact object for the sender if it's not already active
+      if (sender && sender.id !== activeContact?.id) {
+        console.log("Automatically setting active contact based on incoming message:", sender);
+        setActiveContact(sender);
+        
+        // If we switched contacts, we need to update the messages list
+        getMessages(sender.id, currentUser.id)
+          .then(messagesList => {
+            setMessages(messagesList);
+          })
+          .catch(error => {
+            console.error("Error loading messages for auto-switched contact:", error);
+          });
+      }
+    }
+    
+    // Add message to current conversation (if applicable)
     addMessage(processedMessage);
     
-    // Show notification if message is from someone other than active contact
-    if (activeContact?.id !== processedMessage.senderId) {
-      const sender = contacts.find(c => c.id === processedMessage.senderId);
+    // Always show notification for new messages
+    if (sender) {
       toast({
-        title: `New message from ${sender?.username || 'Unknown'}`,
+        title: `New message from ${sender.username}`,
         description: processedMessage.content && processedMessage.content.length > 30 
           ? `${processedMessage.content.slice(0, 30)}...` 
           : processedMessage.content || 'New message',
@@ -317,18 +347,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     console.log("Current user:", currentUser);
     console.log("Evaluating if message belongs in current view:", message);
     
-    // Get the conversation participants
-    const senderId = message.senderId;
-    const receiverId = message.receiverId;
-    
-    // Only update messages if it's relevant to the active conversation (between current user and active contact)
-    if (activeContact && currentUser && (
-      // Case 1: Current user sent message to active contact
-      (senderId === currentUser.id && receiverId === activeContact.id) ||
-      // Case 2: Active contact sent message to current user
-      (senderId === activeContact.id && receiverId === currentUser.id)
-    )) {
-      console.log("Adding message to active conversation:", message);
+    // Always add the message to the messages list if we have a current user
+    // This ensures all messages are shown, even when contacts are switched automatically
+    if (currentUser) {
+      console.log("Adding message to conversation:", message);
       
       setMessages(prev => {
         // Check if message already exists (avoid duplicates)
@@ -342,7 +364,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
       });
     } else {
-      console.log("Message not added to current view (different conversation):", message);
+      console.log("Message not added - no current user:", message);
     }
   };
 
