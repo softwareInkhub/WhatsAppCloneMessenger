@@ -218,13 +218,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.query;
       
-      console.log('Contact request body:', req.body);
+      console.log('Contact request body:', JSON.stringify(req.body));
       console.log('User ID:', userId);
       
       if (!userId || typeof userId !== 'string') {
         return sendError(res, 401, 'User ID is required');
       }
       
+      // Manual validation to help debug issues
+      if (!req.body || !req.body.receiverId) {
+        return sendError(res, 400, 'Missing receiverId in request body');
+      }
+      
+      if (typeof req.body.receiverId !== 'string') {
+        return sendError(res, 400, 'receiverId must be a string');
+      }
+      
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidPattern.test(req.body.receiverId)) {
+        return sendError(res, 400, 'receiverId must be a valid UUID');
+      }
+      
+      // Parse the request data
       const requestData = insertContactRequestSchema.parse(req.body);
       
       // Check if users exist

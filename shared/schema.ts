@@ -74,13 +74,9 @@ export const insertMessageSchema = createInsertSchema(messages, {
   updatedAt: true 
 });
 
-export const insertContactRequestSchema = createInsertSchema(contactRequests, {
-  receiverId: z.string().uuid(),
-}).omit({ 
-  id: true, 
-  status: true, 
-  createdAt: true, 
-  updatedAt: true 
+// We need to exclude senderId from validation because it's added server-side
+export const insertContactRequestSchema = z.object({
+  receiverId: z.string().uuid()
 });
 
 export const updateContactRequestSchema = createInsertSchema(contactRequests, {
