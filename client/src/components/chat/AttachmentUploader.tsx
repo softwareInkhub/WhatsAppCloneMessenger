@@ -233,16 +233,16 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
   );
 
   // Content to show when a file is selected
-  const previewContent = (
+  const previewContent = previewFile ? (
     <div className="space-y-4">
       <div className="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
         <div className="mb-3">
-          {getFileIcon(previewFile!.file)}
+          {getFileIcon(previewFile.file)}
         </div>
         <div className="w-full truncate text-center">
-          <p className="font-medium truncate">{previewFile!.file.name}</p>
+          <p className="font-medium truncate">{previewFile.file.name}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {(previewFile!.file.size / 1024 / 1024).toFixed(2)} MB
+            {(previewFile.file.size / 1024 / 1024).toFixed(2)} MB
           </p>
         </div>
       </div>
@@ -257,7 +257,7 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
         </div>
       )}
     </div>
-  );
+  ) : null;
 
   // Footer buttons
   const footerButtons = (
