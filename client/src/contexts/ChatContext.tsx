@@ -50,15 +50,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!isAuthenticated || !currentUser) {
       // Disconnect if not authenticated
       if (wsRef.current) {
-        console.log("Closing WebSocket connection due to logout");
         wsRef.current.close();
         wsRef.current = null;
       }
       return;
     }
 
-    console.log("Setting up WebSocket connection for user:", currentUser.id);
-    
     // Create WebSocket connection with explicit path
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//${window.location.host}/ws?userId=${currentUser.id}`;
@@ -67,25 +64,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Close any existing connection
     if (wsRef.current) {
       wsRef.current.close();
-      wsRef.current = null;
     }
     
-    // Create new connection
     const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-    
-    // Set connection timeout (5 seconds)
-    const connectionTimeout = setTimeout(() => {
-      if (ws.readyState !== WebSocket.OPEN) {
-        console.log("WebSocket connection timeout - retrying");
-        ws.close();
-        // Connection will be retried by the onclose handler
-      }
-    }, 5000);
     
     ws.onopen = () => {
       console.log("WebSocket connection established");
-      clearTimeout(connectionTimeout); // Clear the timeout since we're connected
     };
     
     ws.onmessage = (event) => {
@@ -101,12 +85,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           return;
         }
         
-        console.log(`WebSocket message received: ${type}`, payload);
+        console.log(`WebSocket message received: ${type}`);
         
         switch (type) {
           case 'NEW_MESSAGE':
           case 'MSG': // Shortened format
-            console.log("Received new message via WebSocket:", payload);
             handleNewMessage(payload);
             break;
             
@@ -126,11 +109,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             break;
             
           case 'TYPING':
-            // Handle typing indicators - support both full and shortened property names
-            const isTyping = payload.isTyping || payload.it;
-            const senderId = payload.senderId || payload.s;
-            
-            console.log("Typing status update:", { senderId, isTyping });
+            // Handle typing indicators
+            const isTyping = payload.isTyping;
+            const senderId = payload.senderId;
             
             // Call the typing status handler
             handleTypingStatus(senderId, isTyping);
@@ -154,16 +135,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
     
     ws.onclose = () => {
-      console.log("WebSocket connection closed unexpectedly");
+      console.log("WebSocket connection closed");
       
       // Try to reconnect after a delay if we're still authenticated
-      setTimeout(() => {
-        if (isAuthenticated && currentUser) {
+      if (isAuthenticated && currentUser) {
+        setTimeout(() => {
           console.log("Attempting to reconnect WebSocket...");
-          // Component will handle reconnection on next render cycle
-        }
-      }, 2000);
+          if (wsRef.current === ws) {
+            wsRef.current = null;
+            
+            // Create new connection with explicit path
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws?userId=${currentUser.id}`;
+            console.log("Reconnecting to WebSocket:", wsUrl);
+            
+            const newWs = new WebSocket(wsUrl);
+            wsRef.current = newWs;
+          }
+        }, 3000);
+      }
     };
+    
+    wsRef.current = ws;
     
     // Load initial data
     refreshContacts();
@@ -188,73 +181,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [activeContact]);
 
   // Handle incoming messages
-  const handleNewMessage = (message: Message | any) => {
-    console.log("Processing new message in handler:", message);
+  const handleNewMessage = (message: Message) => {
+    // Add message to state
+    addMessage(message);
     
-    // Convert shortened property names to full names if needed
-    // This handles the optimized WebSocket format with shortened keys
-    const processedMessage: Message = {
-      id: message.id,
-      senderId: message.senderId || message.s,
-      receiverId: message.receiverId || message.r,
-      content: message.content || message.c,
-      type: message.type || message.t,
-      status: message.status || message.st,
-      createdAt: message.createdAt || message.ts,
-      updatedAt: message.updatedAt || message.ts
-    };
-    
-    console.log("Processed message with full property names:", processedMessage);
-    
-    // Find sender information for proper display
-    const senderId = processedMessage.senderId;
-    const sender = contacts.find(c => c.id === senderId);
-    
-    // If the message is from the current contact, automatically set it as active
-    if (currentUser && 
-        processedMessage.senderId !== currentUser.id && 
-        (!activeContact || activeContact.id !== processedMessage.senderId)) {
-      
-      // Find the contact object for the sender if it's not already active
-      if (sender && sender.id !== activeContact?.id) {
-        console.log("Automatically setting active contact based on incoming message:", sender);
-        setActiveContact(sender);
-        
-        // If we switched contacts, we need to update the messages list
-        getMessages(sender.id, currentUser.id)
-          .then(messagesList => {
-            setMessages(messagesList);
-          })
-          .catch(error => {
-            console.error("Error loading messages for auto-switched contact:", error);
-          });
-      }
-    }
-    
-    // Add message to current conversation (if applicable)
-    addMessage(processedMessage);
-    
-    // Always show notification for new messages
-    if (sender) {
+    // Show notification if message is from someone other than active contact
+    if (activeContact?.id !== message.senderId) {
+      const sender = contacts.find(c => c.id === message.senderId);
       toast({
-        title: `New message from ${sender.username}`,
-        description: processedMessage.content && processedMessage.content.length > 30 
-          ? `${processedMessage.content.slice(0, 30)}...` 
-          : processedMessage.content || 'New message',
+        title: `New message from ${sender?.username || 'Unknown'}`,
+        description: message.content.length > 30 ? `${message.content.slice(0, 30)}...` : message.content,
       });
     }
   };
 
-  // Handle message status updates - with support for both formats
-  const handleMessagesRead = (data: any) => {
-    // Extract data from either long or short format
-    const readerId = data.readBy || data.rb;
-    const messageIds = data.messages || data.messageIds || data.mIds || [];
-    
-    console.log("Read receipt received:", { readerId, messageIds });
-    
-    // Update message status to read
-    updateMessageStatus(messageIds, "read");
+  // Handle message status updates
+  const handleMessagesRead = (data: { readBy: string, messages: string[] }) => {
+    updateMessageStatus(data.messages, "read");
   };
 
   // Handle incoming contact requests
@@ -343,29 +286,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Add a new message to the state
   const addMessage = (message: Message) => {
-    console.log("Active contact:", activeContact);
-    console.log("Current user:", currentUser);
-    console.log("Evaluating if message belongs in current view:", message);
-    
-    // Always add the message to the messages list if we have a current user
-    // This ensures all messages are shown, even when contacts are switched automatically
-    if (currentUser) {
-      console.log("Adding message to conversation:", message);
+    setMessages(prev => {
+      // Check if message already exists
+      const exists = prev.some(m => m.id === message.id);
+      if (exists) return prev;
       
-      setMessages(prev => {
-        // Check if message already exists (avoid duplicates)
-        const exists = prev.some(m => m.id === message.id);
-        if (exists) return prev;
-        
-        return [...prev, message].sort((a, b) => {
-          const dateA = safeDate(a.createdAt).getTime();
-          const dateB = safeDate(b.createdAt).getTime();
-          return dateA - dateB;
-        });
+      return [...prev, message].sort((a, b) => {
+        const dateA = safeDate(a.createdAt).getTime();
+        const dateB = safeDate(b.createdAt).getTime();
+        return dateA - dateB;
       });
-    } else {
-      console.log("Message not added - no current user:", message);
-    }
+    });
   };
 
   // Update message status
