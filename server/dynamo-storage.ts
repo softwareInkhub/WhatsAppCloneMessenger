@@ -206,6 +206,17 @@ export class DynamoDBStorage implements IStorage {
   
   // OTP verification
   async storeVerificationCode(phoneNumber: string, code: string): Promise<void> {
+    // For development or local testing, just log the code without attempting DB storage
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'local') {
+      console.log(`DEVELOPMENT MODE: OTP code for ${phoneNumber} is ${code}`);
+      
+      // For local development, don't rely on DynamoDB
+      if (process.env.LOCAL === 'true') {
+        console.log('LOCAL MODE: Skipping DynamoDB operations');
+        return;
+      }
+    }
+    
     const command = new PutCommand({
       TableName: TableNames.VERIFICATION_CODES,
       Item: {
@@ -217,18 +228,31 @@ export class DynamoDBStorage implements IStorage {
     });
     
     try {
+      console.log(`Attempting to store OTP code in DynamoDB for ${phoneNumber}`);
       await dynamoDB.docClient.send(command);
+      console.log(`Successfully stored OTP code in DynamoDB for ${phoneNumber}`);
     } catch (error) {
       console.error('Error storing verification code:', error);
+      // For development, don't throw error - just log it
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Continuing despite DynamoDB error in development mode');
+        return;
+      }
       throw error;
     }
   }
 
   async verifyOTP(phoneNumber: string, code: string): Promise<boolean> {
-    // For development, accept fixed code
-    if (process.env.NODE_ENV === 'development' && code === '123456') {
-      log(`DEVELOPMENT MODE: Automatically validating OTP for ${phoneNumber}`);
+    // For development or local testing, accept fixed code
+    if ((process.env.NODE_ENV === 'development' || process.env.LOCAL === 'true') && code === '123456') {
+      console.log(`DEVELOPMENT MODE: Automatically validating OTP for ${phoneNumber}`);
       return true;
+    }
+    
+    // For local development, don't rely on DynamoDB at all
+    if (process.env.LOCAL === 'true') {
+      console.log('LOCAL MODE: Skipping DynamoDB operations for OTP verification');
+      return code === '123456'; // Only accept the fixed code in local mode
     }
     
     const command = new GetCommand({
@@ -237,19 +261,30 @@ export class DynamoDBStorage implements IStorage {
     });
     
     try {
+      console.log(`Attempting to verify OTP code in DynamoDB for ${phoneNumber}`);
       const response = await dynamoDB.docClient.send(command);
       const item = response.Item;
       
-      if (!item) return false;
+      if (!item) {
+        console.log(`No verification code found for ${phoneNumber}`);
+        return false;
+      }
       
       // Check if code matches and hasn't expired
       if (item.code === code && new Date(item.expiresAt) > new Date()) {
+        console.log(`Valid OTP verified for ${phoneNumber}`);
         return true;
       }
       
+      console.log(`Invalid or expired OTP for ${phoneNumber}`);
       return false;
     } catch (error) {
       console.error('Error verifying OTP:', error);
+      // In development mode, accept code despite DynamoDB errors
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`DEVELOPMENT MODE: Accepting OTP despite DynamoDB error for ${phoneNumber}`);
+        return code === '123456'; // Only accept the fixed code
+      }
       return false;
     }
   }
