@@ -313,15 +313,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Add a new message to the state
   const addMessage = (message: Message) => {
-    // Only update messages if it's relevant to the active conversation
-    if (activeContact && (
-      message.senderId === activeContact.id || 
-      message.receiverId === activeContact.id
+    console.log("Active contact:", activeContact);
+    console.log("Current user:", currentUser);
+    console.log("Evaluating if message belongs in current view:", message);
+    
+    // Get the conversation participants
+    const senderId = message.senderId;
+    const receiverId = message.receiverId;
+    
+    // Only update messages if it's relevant to the active conversation (between current user and active contact)
+    if (activeContact && currentUser && (
+      // Case 1: Current user sent message to active contact
+      (senderId === currentUser.id && receiverId === activeContact.id) ||
+      // Case 2: Active contact sent message to current user
+      (senderId === activeContact.id && receiverId === currentUser.id)
     )) {
       console.log("Adding message to active conversation:", message);
       
       setMessages(prev => {
-        // Check if message already exists
+        // Check if message already exists (avoid duplicates)
         const exists = prev.some(m => m.id === message.id);
         if (exists) return prev;
         
