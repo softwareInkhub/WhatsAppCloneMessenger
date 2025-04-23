@@ -66,12 +66,11 @@ export const insertUserSchema = createInsertSchema(users, {
   verified: true
 });
 
-export const insertMessageSchema = createInsertSchema(messages, {
+export const insertMessageSchema = z.object({
+  receiverId: z.string().uuid(),
   content: z.string().min(1),
-}).omit({ 
-  id: true, 
-  createdAt: true, 
-  updatedAt: true 
+  type: z.enum(['text', 'image', 'video', 'audio', 'document']).default('text'),
+  status: z.enum(['sent', 'delivered', 'read']).optional().default('sent'),
 });
 
 // We need to exclude senderId from validation because it's added server-side
