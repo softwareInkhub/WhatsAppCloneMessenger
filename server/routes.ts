@@ -1,6 +1,6 @@
 import express, { type Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { 
   insertUserSchema, 
@@ -19,14 +19,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create WebSocket server for real-time messaging with explicit path
   const wss = new WebSocketServer({ 
     server: httpServer,
-    path: '/ws' 
+    path: '/ws',
+    perMessageDeflate: {
+      zlibDeflateOptions: {
+        // See zlib defaults.
+        level: 6,
+        memLevel: 8,
+        windowBits: 15,
+      },
+      zlibInflateOptions: {
+        windowBits: 15,
+      },
+      // Other options settable:
+      clientNoContextTakeover: true, // Defaults to negotiated value.
+      serverNoContextTakeover: true, // Defaults to negotiated value.
+      serverMaxWindowBits: 10, // Defaults to negotiated value.
+      // Below options specified as default values.
+      concurrencyLimit: 10, // Limits zlib concurrency for perf.
+      threshold: 1024, // Size (in bytes) below which messages should not be compressed.
+    },
   });
   
-  console.log("WebSocket server initialized at path: /ws");
+  console.log("WebSocket server initialized at path: /ws with compression");
   
-  // Store client connections
-  const clients = new Map<string, any>();
+  // Store client connections with better typing
+  const clients = new Map<string, WebSocket>();
   
+  // Ping all clients every 30 seconds to keep connections alive
+  const pingInterval = setInterval(() => {
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.ping();
+      }
+    });
+  }, 30000);
+  
+  // Handle WebSocket connections
   wss.on('connection', (ws, req) => {
     console.log("New WebSocket connection received");
     
@@ -37,19 +65,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log("WebSocket connection:", { url: req.url, userId });
     
     if (userId) {
+      // Set a timeout for the WebSocket
+      (ws as any).isAlive = true;
+      
+      // Respond to pings to keep connection alive
+      ws.on('pong', () => {
+        (ws as any).isAlive = true;
+      });
+      
+      // Handle heartbeat - ping clients regularly
+      const heartbeat = setInterval(() => {
+        if ((ws as any).isAlive === false) {
+          clearInterval(heartbeat);
+          return ws.terminate();
+        }
+        
+        (ws as any).isAlive = false;
+        ws.ping();
+      }, 30000);
+      
+      // Store client connection
       clients.set(userId, ws);
       console.log(`User ${userId} connected to WebSocket`);
       
-      // Send a welcome message to confirm connection
+      // Send a welcome message to confirm connection - with minimal payload
       ws.send(JSON.stringify({
-        type: 'CONNECTION_ESTABLISHED',
-        data: { userId, timestamp: new Date().toISOString() }
+        t: 'CONN', // Shortened type for bandwidth efficiency
+        d: { id: userId } // Minimal data needed
       }));
       
       // Handle client disconnect
       ws.on('close', () => {
         console.log(`User ${userId} disconnected from WebSocket`);
         clients.delete(userId);
+        clearInterval(heartbeat);
+      });
+      
+      // Handle direct WebSocket messages from client
+      ws.on('message', (message) => {
+        try {
+          // Process client-side messages for direct WebSocket communication
+          const data = JSON.parse(message.toString());
+          
+          // Handle different client message types
+          // This enables direct client-to-client communication without REST API overhead
+          switch(data.t) {
+            case 'TYPING':
+              // Forward typing indicator to the recipient
+              const recipientWs = clients.get(data.d.recipientId);
+              if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
+                recipientWs.send(JSON.stringify({
+                  t: 'TYPING',
+                  d: { senderId: userId, isTyping: data.d.isTyping }
+                }));
+              }
+              break;
+              
+            case 'READ_RECEIPT':
+              // Forward read receipt to the original sender
+              const senderWs = clients.get(data.d.senderId);
+              if (senderWs && senderWs.readyState === WebSocket.OPEN) {
+                senderWs.send(JSON.stringify({
+                  t: 'READ_RECEIPT',
+                  d: { 
+                    readBy: userId,
+                    messageIds: data.d.messageIds 
+                  }
+                }));
+              }
+              break;
+          }
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
+        }
       });
     } else {
       console.log("WebSocket connection rejected: no userId provided");
@@ -484,12 +572,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         senderId: userId
       });
       
-      // Notify receiver if online
+      // Notify receiver if online - with optimized payload format
       const receiverWs = clients.get(messageData.receiverId);
-      if (receiverWs && receiverWs.readyState === 1) {
+      if (receiverWs && receiverWs.readyState === WebSocket.OPEN) {
+        // Send minimal data for bandwidth efficiency
         receiverWs.send(JSON.stringify({
-          type: 'NEW_MESSAGE',
-          data: message
+          t: 'MSG', // Shortened type name
+          d: message // Message data
         }));
       }
       
