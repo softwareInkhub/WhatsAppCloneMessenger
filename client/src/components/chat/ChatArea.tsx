@@ -1,10 +1,12 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useChat } from "@/contexts/ChatContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import MessageItem from "./MessageItem";
 import MessageInput from "./MessageInput";
+import ContactProfile from "./ContactProfile";
 import { format } from "date-fns";
+import { safeDate, getInitials, formatLastSeen } from "@/lib/utils";
 
 interface ChatAreaProps {
   onBackToContacts: () => void;
@@ -14,6 +16,7 @@ interface ChatAreaProps {
 export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) {
   const { activeContact, messages, loading } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showProfile, setShowProfile] = useState(false);
   
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -22,7 +25,7 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
   
   // Group messages by date
   const groupedMessages = messages.reduce((groups, message) => {
-    const date = new Date(message.createdAt).toDateString();
+    const date = safeDate(message.createdAt).toDateString();
     if (!groups[date]) {
       groups[date] = [];
     }
@@ -95,19 +98,16 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
               <AvatarFallback>{getInitials(activeContact.username)}</AvatarFallback>
             </Avatar>
             <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ${
-              new Date(activeContact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5 
+              safeDate(activeContact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5 
                 ? "bg-green-500" 
                 : "bg-gray-400"
             } border-2 border-white dark:border-gray-900`}></span>
           </div>
           
-          <div className="ml-3">
+          <div className="ml-3 cursor-pointer" onClick={() => setShowProfile(true)}>
             <div className="font-medium">{activeContact.username}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              {new Date(activeContact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5 
-                ? "Online" 
-                : `Last seen ${format(new Date(activeContact.lastSeen), "h:mm a")}`
-              }
+              {formatLastSeen(activeContact.lastSeen)}
             </div>
           </div>
         </div>
@@ -124,7 +124,12 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
               <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
             </svg>
           </Button>
-          <Button variant="ghost" size="icon" title="More options">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            title="View profile"
+            onClick={() => setShowProfile(true)}
+          >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="1"></circle>
               <circle cx="19" cy="12" r="1"></circle>
@@ -183,6 +188,13 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
       
       {/* Message Input */}
       <MessageInput contactId={activeContact.id} />
+      
+      {/* Contact profile dialog */}
+      <ContactProfile 
+        contact={activeContact} 
+        open={showProfile} 
+        onOpenChange={setShowProfile} 
+      />
     </main>
   );
 }
