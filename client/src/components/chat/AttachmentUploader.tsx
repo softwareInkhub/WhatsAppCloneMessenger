@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { Paperclip, X, File, Upload, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { X, Image, File, FilePlus, FileText, Music, Video, UploadCloud } from 'lucide-react';
-import { Dialog, DialogContent, DialogTitle, DialogHeader, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 interface AttachmentUploaderProps {
   onFileSelect: (file: File) => void;
@@ -16,59 +16,61 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
   const [previewFile, setPreviewFile] = useState<{ file: File; preview: string } | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles?.length > 0) {
-      const file = acceptedFiles[0]; // Just handle one file at a time for simplicity
-      
-      // Create preview for images
-      if (file.type.startsWith('image/')) {
-        const preview = URL.createObjectURL(file);
-        setPreviewFile({ file, preview });
-      } else {
-        setPreviewFile({ file, preview: '' });
-      }
+    if (acceptedFiles.length === 0) return;
+    
+    const file = acceptedFiles[0];
+    
+    // Create a preview for image files
+    if (file.type.startsWith('image/')) {
+      const preview = URL.createObjectURL(file);
+      setPreviewFile({ file, preview });
+    } else {
+      setPreviewFile({ file, preview: '' });
     }
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
     onDrop,
-    accept: {
-      'image/*': [],
-      'audio/*': [],
-      'video/*': [],
-      'application/pdf': [],
-      'application/msword': [],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [],
-      'text/plain': [],
-    },
+    maxFiles: 1,
     maxSize: 10485760, // 10MB
-    multiple: false,
   });
 
-  const handleClose = () => {
+  const handleSubmit = () => {
+    if (previewFile) {
+      onFileSelect(previewFile.file);
+      setIsOpen(false);
+      // Keep the file selected until upload is complete
+      if (!isUploading) {
+        setPreviewFile(null);
+      }
+    }
+  };
+
+  const handleCancel = () => {
     setIsOpen(false);
     setPreviewFile(null);
   };
 
-  const handleSend = () => {
-    if (previewFile) {
-      onFileSelect(previewFile.file);
-      handleClose();
-    }
-  };
-
   const getFileIcon = (file: File) => {
-    if (file.type.startsWith('image/')) return <Image className="h-8 w-8 text-blue-500" />;
-    if (file.type.startsWith('audio/')) return <Music className="h-8 w-8 text-purple-500" />;
-    if (file.type.startsWith('video/')) return <Video className="h-8 w-8 text-red-500" />;
-    if (file.type.includes('pdf')) return <FileText className="h-8 w-8 text-orange-500" />;
-    if (file.type.includes('word') || file.type.includes('document')) return <File className="h-8 w-8 text-blue-600" />;
-    return <FilePlus className="h-8 w-8 text-gray-500" />;
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' bytes';
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / 1048576).toFixed(1) + ' MB';
+    if (file.type.startsWith('image/')) {
+      return previewFile?.preview ? (
+        <img 
+          src={previewFile.preview} 
+          alt="Preview" 
+          className="max-h-56 max-w-full rounded-lg object-contain"
+        />
+      ) : <File className="h-12 w-12 text-gray-400" />;
+    }
+    
+    if (file.type.startsWith('video/')) {
+      return <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>;
+    }
+    
+    if (file.type.startsWith('audio/')) {
+      return <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>;
+    }
+    
+    return <File className="h-12 w-12 text-gray-400" />;
   };
 
   return (
@@ -77,91 +79,80 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
         variant="ghost" 
         size="icon"
         onClick={() => setIsOpen(true)}
-        title="Attach a file"
+        disabled={isUploading}
+        title="Attach file"
       >
-        <FilePlus className="h-5 w-5" />
+        {isUploading ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <Paperclip className="h-5 w-5" />
+        )}
       </Button>
-      
+
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Upload Attachment</DialogTitle>
           </DialogHeader>
           
-          <div className="p-4">
-            {!previewFile ? (
-              <div 
-                {...getRootProps()} 
-                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                  isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 dark:border-gray-600'
-                }`}
-              >
-                <input {...getInputProps()} />
-                <UploadCloud className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
-                  {isDragActive ? 'Drop the file here' : 'Drag & drop or click to select'}
-                </p>
-                <p className="text-xs text-gray-400">
-                  Support images, videos, documents up to 10MB
-                </p>
+          {!previewFile ? (
+            <div 
+              {...getRootProps()} 
+              className={`
+                border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+                transition-colors duration-200 ease-in-out
+                ${isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 dark:border-gray-600'}
+                hover:border-primary hover:bg-primary/5
+              `}
+            >
+              <input {...getInputProps()} />
+              <Upload className="h-10 w-10 mx-auto mb-2 text-gray-400" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Drag and drop a file here, or click to select
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                Maximum file size: 10MB
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div className="mb-3">
+                  {getFileIcon(previewFile.file)}
+                </div>
+                <div className="w-full truncate text-center">
+                  <p className="font-medium truncate">{previewFile.file.name}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {(previewFile.file.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {previewFile.preview ? (
-                  <div className="relative w-full rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
-                    <img 
-                      src={previewFile.preview} 
-                      alt="Preview" 
-                      className="w-full max-h-60 object-contain" 
-                    />
-                    <button 
-                      className="absolute top-2 right-2 bg-gray-900/60 text-white rounded-full p-1"
-                      onClick={() => setPreviewFile(null)}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+              
+              {isUploading && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>Uploading...</span>
+                    <span>{uploadProgress}%</span>
                   </div>
-                ) : (
-                  <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg flex items-center gap-3">
-                    {getFileIcon(previewFile.file)}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{previewFile.file.name}</p>
-                      <p className="text-xs text-gray-500">{formatFileSize(previewFile.file.size)}</p>
-                    </div>
-                    <button 
-                      className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"
-                      onClick={() => setPreviewFile(null)}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-                
-                {isUploading && (
-                  <div className="space-y-2">
-                    <Progress value={uploadProgress} />
-                    <p className="text-xs text-center text-gray-500">
-                      Uploading... {uploadProgress}%
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                  <Progress value={uploadProgress} className="h-2" />
+                </div>
+              )}
+            </div>
+          )}
           
-          <DialogFooter className="flex space-x-2 sm:justify-end">
+          <DialogFooter className="sm:justify-between">
             <Button 
               variant="outline" 
-              onClick={handleClose}
+              onClick={handleCancel}
               disabled={isUploading}
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleSend}
+            <Button 
+              onClick={handleSubmit} 
               disabled={!previewFile || isUploading}
             >
-              Send
+              {isUploading ? 'Uploading...' : 'Send'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -17,6 +17,7 @@ export default function MessageItem({ message }: MessageItemProps) {
   const messageRef = useRef<HTMLDivElement>(null);
   const isSent = message.senderId === currentUser?.id;
   const isHighlighted = message.id === highlightedMessageId;
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   
   // Scroll to the message when it's highlighted
   useEffect(() => {
@@ -63,9 +64,72 @@ export default function MessageItem({ message }: MessageItemProps) {
         
         {message.type === "image" && (
           <div className="mb-2">
-            <div className="rounded-lg overflow-hidden">
-              <img src={message.content} alt="Image message" className="max-w-full" />
+            <div 
+              className="rounded-lg overflow-hidden cursor-pointer" 
+              onClick={() => setIsImageModalOpen(true)}
+            >
+              <img 
+                src={message.content} 
+                alt="Image message" 
+                className="max-w-full h-auto max-h-[300px] object-contain" 
+              />
             </div>
+            <Dialog open={isImageModalOpen} onOpenChange={setIsImageModalOpen}>
+              <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 overflow-hidden bg-transparent border-none">
+                <img 
+                  src={message.content} 
+                  alt="Image full view" 
+                  className="w-full h-auto max-h-[90vh] object-contain"
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
+        
+        {message.type === "video" && (
+          <div className="mb-2">
+            <div className="rounded-lg overflow-hidden">
+              <video 
+                src={message.content} 
+                controls
+                className="max-w-full h-auto max-h-[300px]"
+              >
+                Your browser does not support video playback.
+              </video>
+            </div>
+          </div>
+        )}
+        
+        {message.type === "audio" && (
+          <div className="mb-2 flex items-center">
+            <Music className="h-5 w-5 mr-2 flex-shrink-0" />
+            <audio 
+              src={message.content} 
+              controls
+              className="max-w-full"
+            >
+              Your browser does not support audio playback.
+            </audio>
+          </div>
+        )}
+        
+        {message.type === "document" && (
+          <div className="mb-2">
+            <a 
+              href={message.content}
+              target="_blank"
+              rel="noopener noreferrer" 
+              className="flex items-center p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            >
+              <FileText className="h-6 w-6 mr-2 flex-shrink-0 text-blue-500" />
+              <div className="overflow-hidden">
+                <p className="truncate text-sm font-medium">Document</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  Click to open
+                </p>
+              </div>
+              <ExternalLink className="h-4 w-4 ml-2 flex-shrink-0" />
+            </a>
           </div>
         )}
         
