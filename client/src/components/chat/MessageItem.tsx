@@ -1,9 +1,11 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChat } from "@/contexts/ChatContext";
 import { Message } from "@shared/schema";
 import { formatMessageTime, safeDate } from "@/lib/utils";
+import { File, FileText, Film, Music, Image as ImageIcon, ExternalLink } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface MessageItemProps {
   message: Message;
