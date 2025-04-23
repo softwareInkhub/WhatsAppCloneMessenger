@@ -466,8 +466,12 @@ export class DynamoDBStorage implements IStorage {
       
       // Convert back to app schema for consistency
       const appMessage: Message = {
-        ...dynamoMessage,
-        timestamp: now,
+        id: dynamoMessage.id,
+        senderId: dynamoMessage.senderId,
+        receiverId: dynamoMessage.receiverId,
+        content: dynamoMessage.content,
+        type: dynamoMessage.type,
+        status: dynamoMessage.status,
         createdAt: now,
         updatedAt: now
       };

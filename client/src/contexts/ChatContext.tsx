@@ -95,17 +95,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     
     ws.onerror = (error) => {
       console.error("WebSocket error:", error);
-      // Try to reconnect after a delay
-      setTimeout(() => {
-        console.log("Attempting to reconnect WebSocket...");
-        if (wsRef.current === ws) {
-          wsRef.current = null;
-        }
-      }, 5000);
+      // We'll handle reconnection in the onclose handler
     };
     
     ws.onclose = () => {
       console.log("WebSocket connection closed");
+      
+      // Try to reconnect after a delay if we're still authenticated
+      if (isAuthenticated && currentUser) {
+        setTimeout(() => {
+          console.log("Attempting to reconnect WebSocket...");
+          if (wsRef.current === ws) {
+            wsRef.current = null;
+            
+            // Create new connection with explicit path
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws?userId=${currentUser.id}`;
+            console.log("Reconnecting to WebSocket:", wsUrl);
+            
+            const newWs = new WebSocket(wsUrl);
+            wsRef.current = newWs;
+          }
+        }, 3000);
+      }
     };
     
     wsRef.current = ws;
