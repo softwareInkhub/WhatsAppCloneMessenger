@@ -85,11 +85,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           return;
         }
         
-        console.log(`WebSocket message received: ${type}`);
+        console.log(`WebSocket message received: ${type}`, payload);
         
         switch (type) {
           case 'NEW_MESSAGE':
           case 'MSG': // Shortened format
+            console.log("Received new message via WebSocket:", payload);
             handleNewMessage(payload);
             break;
             
@@ -181,16 +182,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [activeContact]);
 
   // Handle incoming messages
-  const handleNewMessage = (message: Message) => {
-    // Add message to state
-    addMessage(message);
+  const handleNewMessage = (message: Message | any) => {
+    console.log("Processing new message in handler:", message);
+    
+    // Add message to state - ensure we have a properly formatted message object
+    const processedMessage = message as Message;
+    addMessage(processedMessage);
     
     // Show notification if message is from someone other than active contact
-    if (activeContact?.id !== message.senderId) {
-      const sender = contacts.find(c => c.id === message.senderId);
+    if (activeContact?.id !== processedMessage.senderId) {
+      const sender = contacts.find(c => c.id === processedMessage.senderId);
       toast({
         title: `New message from ${sender?.username || 'Unknown'}`,
-        description: message.content.length > 30 ? `${message.content.slice(0, 30)}...` : message.content,
+        description: processedMessage.content && processedMessage.content.length > 30 
+          ? `${processedMessage.content.slice(0, 30)}...` 
+          : processedMessage.content || 'New message',
       });
     }
   };
@@ -286,17 +292,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Add a new message to the state
   const addMessage = (message: Message) => {
-    setMessages(prev => {
-      // Check if message already exists
-      const exists = prev.some(m => m.id === message.id);
-      if (exists) return prev;
+    // Only update messages if it's relevant to the active conversation
+    if (activeContact && (
+      message.senderId === activeContact.id || 
+      message.receiverId === activeContact.id
+    )) {
+      console.log("Adding message to active conversation:", message);
       
-      return [...prev, message].sort((a, b) => {
-        const dateA = safeDate(a.createdAt).getTime();
-        const dateB = safeDate(b.createdAt).getTime();
-        return dateA - dateB;
+      setMessages(prev => {
+        // Check if message already exists
+        const exists = prev.some(m => m.id === message.id);
+        if (exists) return prev;
+        
+        return [...prev, message].sort((a, b) => {
+          const dateA = safeDate(a.createdAt).getTime();
+          const dateB = safeDate(b.createdAt).getTime();
+          return dateA - dateB;
+        });
       });
-    });
+    } else {
+      console.log("Message not added to current view (different conversation):", message);
+    }
   };
 
   // Update message status
