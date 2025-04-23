@@ -48,7 +48,7 @@ export default function RegistrationForm() {
       setIsLoading(false);
       login(data);
       console.log("Registration complete, navigating to /chat");
-      window.location.href = "/chat";
+      setLocation("/chat");
       toast({
         title: "Registration Complete",
         description: "Your account has been created successfully",

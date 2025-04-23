@@ -23,27 +23,42 @@ export default function OTPVerificationForm() {
         // New user, go to registration
         setIsNewUser(true);
         console.log("New user, navigating to /register");
-        window.location.href = "/register";
         toast({
           title: "OTP Verified",
           description: "Please complete your profile",
         });
+        setLocation("/register");
       } else {
         // Existing user, log in
         login(data.user);
         console.log("User logged in, navigating to /chat");
-        window.location.href = "/chat";
         toast({
           title: "Login Successful",
           description: "Welcome back!",
         });
+        setLocation("/chat");
       }
     },
-    onError: (error) => {
+    onError: (error: any) => {
       setIsLoading(false);
+      
+      // Default error message
+      let errorMessage = "Failed to verify OTP";
+      
+      // Extract error message if available
+      if (error?.status === 401) {
+        errorMessage = "Invalid verification code. Please check and try again.";
+      } else if (error?.status === 404) {
+        errorMessage = "We couldn't find your verification code. Please request a new one.";  
+      } else if (error?.data?.error) {
+        errorMessage = error.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to verify OTP",
+        title: "Verification Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -72,7 +87,7 @@ export default function OTPVerificationForm() {
 
   const handleBackToLogin = () => {
     console.log("Going back to login page");
-    window.location.href = "/";
+    setLocation("/");
   };
 
   const resendMutation = useMutation({
@@ -83,10 +98,23 @@ export default function OTPVerificationForm() {
         description: "Please check your phone for the new verification code",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      // Improved error handling for resend OTP
+      let errorMessage = "Failed to resend verification code";
+      
+      if (error?.status === 429) {
+        errorMessage = "Too many requests. Please wait a moment before trying again.";
+      } else if (error?.status === 400) {
+        errorMessage = "Invalid phone number format. Please go back and check your number.";
+      } else if (error?.data?.error) {
+        errorMessage = error.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to resend OTP",
+        description: errorMessage,
         variant: "destructive",
       });
     },

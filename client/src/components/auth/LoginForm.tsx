@@ -39,21 +39,36 @@ export default function LoginForm() {
       setIsLoading(false);
       setPhoneNumber(data.phoneNumber);
       
-      // Force navigation to verify page
-      console.log("Navigating to /verify");
-      window.location.href = "/verify";
-      
       toast({
-        title: "OTP Sent",
+        title: "Verification Code Sent",
         description: "Please check your phone for the verification code",
       });
+      
+      // Use wouter's navigation
+      console.log("Navigating to /verify");
+      setLocation("/verify");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("OTP request failed:", error);
       setIsLoading(false);
+      
+      // Default error message
+      let errorMessage = "Failed to send verification code";
+      
+      // Extract error message if available
+      if (error?.status === 429) {
+        errorMessage = "Too many verification attempts. Please try again later.";
+      } else if (error?.status === 400) {
+        errorMessage = "Invalid phone number format. Please enter a valid phone number.";
+      } else if (error?.data?.error) {
+        errorMessage = error.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send OTP",
+        title: "Verification Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     },
