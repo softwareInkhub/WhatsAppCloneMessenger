@@ -61,6 +61,7 @@ export default function LoginPage() {
     defaultValues: {
       otp: '',
     },
+    mode: 'onChange',
   });
 
   // Timer for resending code

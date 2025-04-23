@@ -887,7 +887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Register API routes
-  app.use('/api', router);
+  app.use(router);
   
   return httpServer;
 }
