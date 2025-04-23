@@ -10,6 +10,7 @@ interface ChatContextType {
   activeContact: User | null;
   messages: Message[];
   pendingRequests: (ContactRequest & { sender?: User })[];
+  typingContacts: Record<string, boolean>; // Map of userId -> isTyping status
   loading: {
     contacts: boolean;
     messages: boolean;
@@ -22,6 +23,7 @@ interface ChatContextType {
   refreshPendingRequests: () => Promise<void>;
   addMessage: (message: Message) => void;
   updateMessageStatus: (messageIds: string[], status: "delivered" | "read") => void;
+  sendTypingStatus: (isTyping: boolean) => void; // Send typing status to active contact
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -33,6 +35,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [activeContact, setActiveContact] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [pendingRequests, setPendingRequests] = useState<(ContactRequest & { sender?: User })[]>([]);
+  const [typingContacts, setTypingContacts] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState({
     contacts: false,
     messages: false,
@@ -72,22 +75,53 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       try {
         const data = JSON.parse(event.data);
         
-        // Handle different message types
-        switch (data.type) {
+        // Handle different message types - optimized with shorter type names
+        const type = data.type || data.t; // Support both formats
+        const payload = data.data || data.d; // Support both formats
+        
+        if (!type || !payload) {
+          console.error("Invalid WebSocket message format:", data);
+          return;
+        }
+        
+        console.log(`WebSocket message received: ${type}`);
+        
+        switch (type) {
           case 'NEW_MESSAGE':
-            handleNewMessage(data.data);
+          case 'MSG': // Shortened format
+            handleNewMessage(payload);
             break;
+            
           case 'MESSAGES_READ':
-            handleMessagesRead(data.data);
+          case 'READ': // Shortened format
+            handleMessagesRead(payload);
             break;
+            
           case 'CONTACT_REQUEST':
-            handleContactRequest(data.data);
+          case 'REQ': // Shortened format
+            handleContactRequest(payload);
             break;
+            
           case 'CONTACT_REQUEST_ACCEPTED':
-            handleContactRequestAccepted(data.data);
+          case 'REQ_ACC': // Shortened format
+            handleContactRequestAccepted(payload);
             break;
+            
+          case 'TYPING':
+            // Handle typing indicators
+            const isTyping = payload.isTyping;
+            const senderId = payload.senderId;
+            
+            // Call the typing status handler
+            handleTypingStatus(senderId, isTyping);
+            break;
+            
+          case 'CONN': // Connection confirmation
+            console.log("WebSocket connection confirmed with ID:", payload.id);
+            break;
+            
           default:
-            console.log("Unknown message type:", data.type);
+            console.log("Unknown message type:", type);
         }
       } catch (error) {
         console.error("Failed to parse WebSocket message:", error);
@@ -275,6 +309,63 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  // Handle typing indicator - with debounce to prevent too many WebSocket messages
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Send typing status to the active contact
+  const sendTypingStatus = (isTyping: boolean) => {
+    if (!wsRef.current || !activeContact || !currentUser || wsRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    // Clear any existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+
+    // Send typing status via WebSocket
+    wsRef.current.send(JSON.stringify({
+      t: 'TYPING', // Using short message type for bandwidth efficiency
+      d: {
+        recipientId: activeContact.id,
+        isTyping
+      }
+    }));
+
+    // If typing, automatically set to false after 3 seconds of inactivity
+    if (isTyping) {
+      typingTimeoutRef.current = setTimeout(() => {
+        sendTypingStatus(false);
+      }, 3000);
+    }
+  };
+
+  // Handle typing indicator update from server
+  const handleTypingStatus = (senderId: string, isTyping: boolean) => {
+    setTypingContacts(prev => ({
+      ...prev,
+      [senderId]: isTyping
+    }));
+
+    // If typing indicator is set to false, clear it after 1.5 seconds
+    // This ensures a smooth UX without abrupt disappearance
+    if (!isTyping) {
+      setTimeout(() => {
+        setTypingContacts(prev => {
+          if (prev[senderId] === false) {
+            const newState = {...prev};
+            delete newState[senderId];
+            return newState;
+          }
+          return prev;
+        });
+      }, 1500);
+    }
+  };
+
+  // We don't need this secondary WebSocket handler since we already updated the main one
+
   return (
     <ChatContext.Provider
       value={{
@@ -282,6 +373,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         activeContact,
         messages,
         pendingRequests,
+        typingContacts,
         loading,
         setActiveContact,
         setContacts,
@@ -290,6 +382,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         refreshPendingRequests,
         addMessage,
         updateMessageStatus,
+        sendTypingStatus
       }}
     >
       {children}

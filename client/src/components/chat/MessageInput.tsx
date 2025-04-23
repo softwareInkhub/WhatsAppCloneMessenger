@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { sendMessage } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,6 +6,7 @@ import { useChat } from "@/contexts/ChatContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface MessageInputProps {
   contactId: string;
@@ -14,8 +15,11 @@ interface MessageInputProps {
 export default function MessageInput({ contactId }: MessageInputProps) {
   const [message, setMessage] = useState("");
   const { currentUser } = useAuth();
-  const { addMessage } = useChat();
+  const { addMessage, sendTypingStatus, typingContacts } = useChat();
   const { toast } = useToast();
+  
+  // Check if the current contact is typing
+  const isContactTyping = typingContacts[contactId];
   
   const mutation = useMutation({
     mutationFn: (content: string) => 
