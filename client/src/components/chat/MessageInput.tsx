@@ -178,17 +178,15 @@ export default function MessageInput({ contactId }: MessageInputProps) {
         </div>
       )}
       <div className="flex items-center">
-        <div className="flex space-x-1">
-          {/* Emoji Picker */}
-          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-          
-          {/* Attachment Uploader */}
-          <AttachmentUploader 
-            onFileSelect={handleFileSelect}
-            isUploading={isUploading}
-            uploadProgress={uploadProgress}
-          />
-        </div>
+        {/* Emoji Picker */}
+        <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+        
+        {/* Attachment Uploader */}
+        <AttachmentUploader 
+          onFileSelect={handleFileSelect}
+          isUploading={isUploading}
+          uploadProgress={uploadProgress}
+        />
         
         <div className="flex-1 mx-2">
           <Input
@@ -205,7 +203,7 @@ export default function MessageInput({ contactId }: MessageInputProps) {
         <Button
           variant="default"
           size="icon"
-          className="flex-shrink-0 rounded-full bg-primary hover:bg-primary-dark"
+          className="rounded-full bg-primary hover:bg-primary-dark"
           onClick={handleSendMessage}
           disabled={textMutation.isPending || !message.trim()}
         >

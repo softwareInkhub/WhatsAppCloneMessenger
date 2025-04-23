@@ -157,7 +157,7 @@ export async function clearCachedData() {
 // Auth functions
 export async function requestOTP(phoneNumber: string) {
   try {
-    const response = await fetch('/auth/request-otp', {
+    const response = await fetch('/api/auth/request-otp', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -169,16 +169,7 @@ export async function requestOTP(phoneNumber: string) {
       throw new Error(`Network error: ${response.statusText}`);
     }
     
-    // Check if the response is JSON before trying to parse it
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      return await response.json();
-    } else {
-      // If not JSON, return a simple object with the response text
-      const text = await response.text();
-      console.log('Non-JSON response:', text);
-      return { message: 'Verification code sent', text };
-    }
+    return await response.json();
   } catch (error) {
     console.error('Error requesting OTP:', error);
     throw error;
@@ -187,7 +178,7 @@ export async function requestOTP(phoneNumber: string) {
 
 export async function verifyOTP(phoneNumber: string, verificationCode: string) {
   try {
-    const response = await fetch('/auth/verify-otp', {
+    const response = await fetch('/api/auth/verify-otp', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -199,16 +190,7 @@ export async function verifyOTP(phoneNumber: string, verificationCode: string) {
       throw new Error(`Network error: ${response.statusText}`);
     }
     
-    // Check if the response is JSON before trying to parse it
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      return await response.json();
-    } else {
-      // If not JSON, return a simple object with the response text
-      const text = await response.text();
-      console.log('Non-JSON response:', text);
-      return { success: true, message: 'OTP verified successfully', text };
-    }
+    return await response.json();
   } catch (error) {
     console.error('Error verifying OTP:', error);
     throw error;
@@ -217,7 +199,7 @@ export async function verifyOTP(phoneNumber: string, verificationCode: string) {
 
 export async function registerUser(userData: InsertUser) {
   try {
-    const response = await fetch('/auth/register', {
+    const response = await fetch('/api/auth/register', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -232,26 +214,6 @@ export async function registerUser(userData: InsertUser) {
     return await response.json();
   } catch (error) {
     console.error('Error registering user:', error);
-    throw error;
-  }
-}
-
-export async function logout() {
-  try {
-    const response = await fetch('/auth/logout', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Network error: ${response.statusText}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error logging out:', error);
     throw error;
   }
 }

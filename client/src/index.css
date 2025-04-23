@@ -2,14 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom Styles */
-.recaptcha-container {
-  min-height: 60px;
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1rem;
-}
-
 @layer components {
   /* Message highlight pulse animation */
   .message-highlight-pulse {

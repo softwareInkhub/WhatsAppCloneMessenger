@@ -5,19 +5,19 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ChatProvider } from "@/contexts/ChatContext";
-import LoginPage from "@/pages/LoginPage";
-import RegistrationPage from "@/pages/RegistrationPage";
+import Login from "@/pages/Login";
+import OTPVerification from "@/pages/OTPVerification";
+import Registration from "@/pages/Registration";
 import Chat from "@/pages/Chat";
 import NotFound from "@/pages/not-found";
-import { ProtectedRoute } from "@/lib/ProtectedRoute";
-import { ThemeProvider } from "next-themes";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/login" component={LoginPage} />
-      <Route path="/register" component={RegistrationPage} />
-      <ProtectedRoute path="/" component={Chat} />
+      <Route path="/" component={Login} />
+      <Route path="/verify" component={OTPVerification} />
+      <Route path="/register" component={Registration} />
+      <Route path="/chat" component={Chat} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -25,23 +25,16 @@ function Router() {
 
 function App() {
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <ChatProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Router />
-            </TooltipProvider>
-          </ChatProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <ChatProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </ChatProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 
