@@ -141,20 +141,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userData = insertUserSchema.parse(req.body);
       
-      // Check if user already exists
+      // Thorough check if user already exists
+      // Check phone number first as it's the primary identifier
       const existingByPhone = await storage.getUserByPhone(userData.phoneNumber);
       if (existingByPhone) {
-        return sendError(res, 409, 'Phone number already registered');
+        console.log(`Registration attempt with already registered phone: ${userData.phoneNumber}`);
+        return sendError(res, 409, 'This phone number is already registered. Please log in or use a different phone number.');
       }
       
+      // Check the rest of the unique identifiers
       const existingByEmail = await storage.getUserByEmail(userData.email);
       if (existingByEmail) {
-        return sendError(res, 409, 'Email already registered');
+        console.log(`Registration attempt with already registered email: ${userData.email}`);
+        return sendError(res, 409, 'Email address already registered. Please use a different email.');
       }
       
       const existingByUsername = await storage.getUserByUsername(userData.username);
       if (existingByUsername) {
-        return sendError(res, 409, 'Username already taken');
+        console.log(`Registration attempt with already taken username: ${userData.username}`);
+        return sendError(res, 409, 'Username already taken. Please choose a different username.');
       }
       
       // Create user

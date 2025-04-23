@@ -76,7 +76,7 @@ export default function OTPVerificationForm() {
   };
 
   const resendMutation = useMutation({
-    mutationFn: requestOTP,
+    mutationFn: (data: { phoneNumber: string }) => requestOTP(data),
     onSuccess: (data) => {
       toast({
         title: "OTP Resent",

@@ -54,11 +54,28 @@ export default function RegistrationForm() {
         description: "Your account has been created successfully",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       setIsLoading(false);
+      
+      // Check for specific error types from backend
+      let errorMessage = "Failed to complete registration";
+      
+      if (error.status === 409) {
+        // Conflict - resource already exists
+        if (error.data?.error) {
+          errorMessage = error.data.error;
+        } else {
+          errorMessage = "This phone number, email, or username is already registered";
+        }
+      } else if (error.data?.error) {
+        errorMessage = error.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to complete registration",
+        title: "Registration Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -66,6 +83,16 @@ export default function RegistrationForm() {
 
   const onSubmit = (values: RegistrationFormValues) => {
     setIsLoading(true);
+    
+    if (!phoneNumber) {
+      toast({
+        title: "Error",
+        description: "Phone number is required. Please restart the registration process.",
+        variant: "destructive"
+      });
+      setIsLoading(false);
+      return;
+    }
     
     // Add phone number to the form data
     const userData = {
