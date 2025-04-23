@@ -18,43 +18,60 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const previousMessagesLength = useRef<number>(0);
   const previousActiveContact = useRef<string | null>(null);
+  const initialScrollComplete = useRef<boolean>(false);
+
+  // Set scroll position to bottom immediately when container is rendered
+  useEffect(() => {
+    // Create an observer to detect when the messages container is fully rendered
+    if (messagesContainerRef.current) {
+      // Start with scroll at bottom (this is crucial, it positions the scroll before any animations)
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      initialScrollComplete.current = true;
+    }
+  }, []);
   
-  // Scroll to bottom when activeContact changes - immediately without animation
+  // Scroll to bottom when activeContact changes - pre-position scroll before render
   useEffect(() => {
     if (!activeContact) return;
     
     const isNewConversation = previousActiveContact.current !== activeContact.id;
     previousActiveContact.current = activeContact.id;
     
-    // Only use this effect for contact changes, not for initial load or new messages
-    if (!isNewConversation) return;
-    
-    // Force an immediate scroll to the bottom without animation
-    requestAnimationFrame(() => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+    if (isNewConversation) {
+      // Reset our scroll flag when changing conversations
+      initialScrollComplete.current = false;
+      
+      // Explicitly set the scroll position to bottom when chat changes
+      if (messagesContainerRef.current) {
+        // Use direct scrollTop manipulation for instant positioning
+        setTimeout(() => {
+          if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+            initialScrollComplete.current = true;
+          }
+        }, 0);
       }
-    });
+    }
   }, [activeContact]);
   
-  // Handle scrolling for new messages
+  // Special handler to position the scroll after messages load
   useEffect(() => {
-    // If we're highlighting a specific message, don't auto-scroll
+    // Don't interfere with highlighted message scrolling
     if (highlightedMessageId) return;
     
     const isNewMessage = messages.length > previousMessagesLength.current;
     previousMessagesLength.current = messages.length;
     
-    // For new incoming messages, scroll smoothly
-    if (isNewMessage && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-    // For initial load of a conversation, scroll immediately
-    else if (messages.length > 0 && messagesEndRef.current) {
-      // Using requestAnimationFrame to ensure the DOM has updated
-      requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
-      });
+    if (messagesContainerRef.current) {
+      if (isNewMessage) {
+        // For new messages, scroll smoothly
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      } 
+      else if (messages.length > 0 && !initialScrollComplete.current) {
+        // For initial load, position immediately
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        initialScrollComplete.current = true;
+      }
     }
   }, [messages, highlightedMessageId]);
   
