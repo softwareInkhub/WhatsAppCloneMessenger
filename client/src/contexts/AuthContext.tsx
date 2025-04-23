@@ -20,8 +20,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [isNewUser, setIsNewUser] = useState(false);
+  const [phoneNumber, setPhoneNumberState] = useState(() => {
+    return localStorage.getItem("whatspe_phone") || "";
+  });
+  const [isNewUser, setIsNewUserState] = useState(() => {
+    return localStorage.getItem("whatspe_is_new_user") === "true";
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -53,11 +57,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
+    setPhoneNumberState("");
+    setIsNewUserState(false);
+    
+    // Clear all localStorage items
     localStorage.removeItem("whatspe_user");
+    localStorage.removeItem("whatspe_phone");
+    localStorage.removeItem("whatspe_is_new_user");
+    
     toast({
       title: "Logged out",
       description: "You have been logged out successfully",
     });
+  };
+
+  // Update setter functions to also update localStorage
+  const setPhoneNumber = (phone: string) => {
+    console.log("Setting phone number:", phone);
+    localStorage.setItem("whatspe_phone", phone);
+    setPhoneNumberState(phone);
+  };
+
+  const setIsNewUser = (isNew: boolean) => {
+    console.log("Setting isNewUser:", isNew);
+    localStorage.setItem("whatspe_is_new_user", isNew.toString());
+    setIsNewUserState(isNew);
   };
 
   return (
