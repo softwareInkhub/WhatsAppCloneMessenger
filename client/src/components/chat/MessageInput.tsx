@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
-import { Message } from "@shared/schema";
 
 interface MessageInputProps {
   contactId: string;
@@ -16,7 +15,7 @@ interface MessageInputProps {
 export default function MessageInput({ contactId }: MessageInputProps) {
   const [message, setMessage] = useState("");
   const { currentUser } = useAuth();
-  const { addMessage, sendTypingStatus, typingContacts, setMessages } = useChat();
+  const { addMessage, sendTypingStatus, typingContacts } = useChat();
   const { toast } = useToast();
   
   // Check if the current contact is typing
@@ -30,46 +29,15 @@ export default function MessageInput({ contactId }: MessageInputProps) {
         type: 'text',
         status: 'sent' // Adding required status field
       }, currentUser!.id),
-    onMutate: async (content) => {
-      // Optimistic update - create temporary message with pending state
-      const tempId = `temp-${Date.now()}`;
-      const optimisticMessage = {
-        id: tempId,
-        senderId: currentUser!.id,
-        receiverId: contactId,
-        content,
-        type: 'text' as const,
-        status: 'sent' as const,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      // Add optimistic message to UI immediately
-      addMessage(optimisticMessage);
-      
-      // Clear message input and typing status
+    onSuccess: (data) => {
+      // Add the new message to the chat
+      addMessage(data);
       setMessage("");
+      
+      // Clear typing indicator when a message is sent
       sendTypingStatus(false);
-      
-      return { tempId, optimisticMessage };
     },
-    onSuccess: (data, _, context) => {
-      if (!context) return;
-      
-      // Replace temporary message with real one from server
-      const { tempId } = context;
-      
-      // Update message in state
-      setMessages(prev => 
-        prev.map(msg => msg.id === tempId ? data : msg)
-      );
-    },
-    onError: (error, _, context) => {
-      if (context) {
-        // Remove failed optimistic message
-        setMessages(prev => prev.filter(msg => msg.id !== context.tempId));
-      }
-      
+    onError: (error) => {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to send message",

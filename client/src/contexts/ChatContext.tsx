@@ -18,7 +18,6 @@ interface ChatContextType {
   };
   setActiveContact: (contact: User | null) => void;
   setContacts: React.Dispatch<React.SetStateAction<User[]>>;
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   refreshContacts: () => Promise<void>;
   refreshMessages: () => Promise<void>;
   refreshPendingRequests: () => Promise<void>;
@@ -378,7 +377,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         loading,
         setActiveContact,
         setContacts,
-        setMessages,
         refreshContacts,
         refreshMessages,
         refreshPendingRequests,
