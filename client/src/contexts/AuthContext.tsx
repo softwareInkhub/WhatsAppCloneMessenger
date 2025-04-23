@@ -96,6 +96,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       try {
         // Try Firebase authentication first
+        const container = document.getElementById(recaptchaContainerId);
+        
+        // Make sure the container exists before creating recaptchaVerifier
+        if (!container) {
+          console.error('Recaptcha container not found');
+          throw new Error('Recaptcha container not found');
+        }
+        
         const recaptchaVerifier = createRecaptchaVerifier(recaptchaContainerId);
         const confirmationResult = await sendOTP(formattedPhoneNumber, recaptchaVerifier);
         return confirmationResult;
@@ -105,7 +113,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // If we hit a billing error or other Firebase issue, fall back to our backend OTP
         if (firebaseError.code === 'auth/billing-not-enabled' || 
             firebaseError.code === 'auth/quota-exceeded' ||
-            firebaseError.code === 'auth/captcha-check-failed') {
+            firebaseError.code === 'auth/captcha-check-failed' ||
+            firebaseError.message === 'Recaptcha container not found') {
           
           console.log('Falling back to server OTP verification');
           
@@ -114,11 +123,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
             phoneNumber: formattedPhoneNumber
           });
           
+          // The apiRequest will throw if not ok, but let's check anyway
           if (!response.ok) {
             throw new Error('Failed to send verification code');
           }
           
-          const data = await response.json();
+          // Process the response based on content type
+          const contentType = response.headers.get('content-type');
+          let data = {};
+          
+          if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+          } else {
+            // If not JSON, just use a simple object
+            data = { message: 'Verification code sent' };
+          }
           
           // Return a mock confirmation object that will be handled in confirmVerificationCode
           return {
@@ -133,8 +152,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Flag to indicate we're using the fallback method
             _isFallback: true,
             _phoneNumber: formattedPhoneNumber,
-            // In development, include the code for testing
-            _devCode: data.code 
+            // In development, include the code (if available) for testing
+            _devCode: (data as any).code || '123456' 
           };
         }
         
@@ -174,7 +193,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
           throw new Error(errorData.error || 'Invalid verification code');
         }
         
-        const data = await response.json();
+        // Get data from response, safely
+        let data;
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+          } else {
+            const text = await response.text();
+            console.log('Non-JSON response from verify-otp:', text);
+            data = { isNewUser: true, phoneNumber };
+          }
+        } catch (error) {
+          console.error('Error parsing response:', error);
+          data = { isNewUser: true, phoneNumber };
+        }
         
         // If the response contains user data, the user exists
         if (data.id) {

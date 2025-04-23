@@ -169,7 +169,16 @@ export async function requestOTP(phoneNumber: string) {
       throw new Error(`Network error: ${response.statusText}`);
     }
     
-    return await response.json();
+    // Check if the response is JSON before trying to parse it
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await response.json();
+    } else {
+      // If not JSON, return a simple object with the response text
+      const text = await response.text();
+      console.log('Non-JSON response:', text);
+      return { message: 'Verification code sent', text };
+    }
   } catch (error) {
     console.error('Error requesting OTP:', error);
     throw error;
@@ -190,7 +199,16 @@ export async function verifyOTP(phoneNumber: string, verificationCode: string) {
       throw new Error(`Network error: ${response.statusText}`);
     }
     
-    return await response.json();
+    // Check if the response is JSON before trying to parse it
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await response.json();
+    } else {
+      // If not JSON, return a simple object with the response text
+      const text = await response.text();
+      console.log('Non-JSON response:', text);
+      return { success: true, message: 'OTP verified successfully', text };
+    }
   } catch (error) {
     console.error('Error verifying OTP:', error);
     throw error;

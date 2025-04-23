@@ -206,7 +206,7 @@ export default function LoginPage() {
                     )}
                   />
                   
-                  <div ref={recaptchaContainerRef} id="recaptcha-container"></div>
+                  <div ref={recaptchaContainerRef} id="recaptcha-container" className="recaptcha-container"></div>
                   
                   <Button 
                     type="submit" 
