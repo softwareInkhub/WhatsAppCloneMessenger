@@ -2,6 +2,7 @@ import React from "react";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { Message } from "@shared/schema";
+import { formatMessageTime, safeDate } from "@/lib/utils";
 
 interface MessageItemProps {
   message: Message;
@@ -11,9 +12,9 @@ export default function MessageItem({ message }: MessageItemProps) {
   const { currentUser } = useAuth();
   const isSent = message.senderId === currentUser?.id;
   
-  // Format time for display
-  const formatTime = (dateString: string) => {
-    return format(new Date(dateString), "h:mm a");
+  // Format time for display using our utility function
+  const formatTime = (date: Date | string | null | undefined) => {
+    return format(safeDate(date), "h:mm a");
   };
   
   return (
