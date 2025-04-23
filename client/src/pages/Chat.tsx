@@ -35,15 +35,19 @@ export default function Chat() {
   // Handle contact selection
   const handleSelectContact = (contact: User) => {
     setActiveContact(contact);
+    
+    // Always enforce the correct mobile visibility state
     if (isMobile) {
-      // Hide sidebar on mobile when chat is opened
-      const sidebar = document.querySelector("aside");
-      const main = document.querySelector("main");
-      if (sidebar && main) {
-        sidebar.classList.add("hidden");
-        main.classList.remove("hidden");
-        main.classList.add("flex");
-      }
+      setTimeout(() => {
+        // Hide sidebar on mobile when chat is opened
+        const sidebar = document.querySelector("aside");
+        const main = document.querySelector("main");
+        if (sidebar && main) {
+          sidebar.classList.add("hidden");
+          main.classList.remove("hidden");
+          main.classList.add("flex");
+        }
+      }, 50); // Small delay to ensure state is updated first
     }
   };
   
@@ -96,13 +100,11 @@ export default function Chat() {
           isMobile={isMobile}
         />
         
-        {/* Main Chat Area - Hide it initially on mobile unless there's an active contact */}
-        {(!isMobile || activeContact) && (
-          <ChatArea
-            onBackToContacts={handleBackToContacts}
-            isMobile={isMobile}
-          />
-        )}
+        {/* Main Chat Area */}
+        <ChatArea
+          onBackToContacts={handleBackToContacts}
+          isMobile={isMobile}
+        />
         
         {/* Add Contact Modal */}
         <AddContactModal

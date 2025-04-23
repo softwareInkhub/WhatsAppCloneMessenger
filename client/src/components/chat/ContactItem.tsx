@@ -69,10 +69,24 @@ export default function ContactItem({ contact, onClick }: ContactItemProps) {
   // Check if user is online (last seen within 5 minutes)
   const isOnline = contact.lastSeen && safeDate(contact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5;
   
+  // Handle click with more controlled UI manipulation for mobile
+  const handleContactClick = () => {
+    onClick();
+    
+    // Additional DOM manipulation to ensure proper mobile view switching
+    const sidebar = document.querySelector("aside");
+    const main = document.querySelector("main");
+    if (sidebar && main) {
+      sidebar.classList.add("hidden");
+      main.classList.remove("hidden");
+      main.classList.add("flex");
+    }
+  };
+  
   return (
     <div 
       className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
-      onClick={onClick}
+      onClick={handleContactClick}
     >
       <div className="relative">
         <Avatar className="h-12 w-12">
