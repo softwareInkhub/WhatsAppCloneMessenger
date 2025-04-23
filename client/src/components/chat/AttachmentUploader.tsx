@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Paperclip, X, File, Upload, Loader2 } from 'lucide-react';
+import { Paperclip, X, File, Upload, Loader2, Camera, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetTrigger, SheetFooter } from '@/components/ui/sheet';
 
 interface AttachmentUploaderProps {
   onFileSelect: (file: File) => void;
@@ -12,7 +13,8 @@ interface AttachmentUploaderProps {
 }
 
 export function AttachmentUploader({ onFileSelect, isUploading = false, uploadProgress = 0 }: AttachmentUploaderProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isDesktopOpen, setIsDesktopOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<{ file: File; preview: string } | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -47,7 +49,8 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
   const handleSubmit = () => {
     if (previewFile) {
       onFileSelect(previewFile.file);
-      setIsOpen(false);
+      setIsDesktopOpen(false);
+      setIsSheetOpen(false);
       // Keep the file selected until upload is complete
       if (!isUploading) {
         setPreviewFile(null);
@@ -56,7 +59,8 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
   };
 
   const handleCancel = () => {
-    setIsOpen(false);
+    setIsDesktopOpen(false);
+    setIsSheetOpen(false);
     setPreviewFile(null);
   };
 
@@ -82,74 +86,139 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
     return <File className="h-12 w-12 text-gray-400" />;
   };
 
+  // Preview component used in both desktop and mobile views
+  const FilePreview = () => (
+    <div className="space-y-4">
+      <div className="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="mb-3">
+          {previewFile && getFileIcon(previewFile.file)}
+        </div>
+        {previewFile && (
+          <div className="w-full truncate text-center">
+            <p className="font-medium truncate">{previewFile.file.name}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {(previewFile.file.size / 1024 / 1024).toFixed(2)} MB
+            </p>
+          </div>
+        )}
+      </div>
+      
+      {isUploading && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+            <span>Uploading...</span>
+            <span>{uploadProgress}%</span>
+          </div>
+          <Progress value={uploadProgress} className="h-2" />
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <>
-      <Button 
-        variant="ghost" 
-        size="icon"
-        onClick={() => setIsOpen(true)}
-        disabled={isUploading}
-        title="Attach file"
-      >
-        {isUploading ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
-        ) : (
-          <Paperclip className="h-5 w-5" />
-        )}
-      </Button>
+      {/* Desktop View */}
+      <div className="hidden md:block">
+        <Button 
+          variant="ghost" 
+          size="icon"
+          onClick={() => setIsDesktopOpen(true)}
+          disabled={isUploading}
+          title="Attach file"
+        >
+          {isUploading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Paperclip className="h-5 w-5" />
+          )}
+        </Button>
 
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Upload Attachment</DialogTitle>
-          </DialogHeader>
-          
-          {!previewFile ? (
-            <>
-              {/* Desktop drag & drop area */}
-              <div className="hidden md:block">
-                <div 
-                  {...getRootProps()} 
-                  className={`
-                    border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
-                    transition-colors duration-200 ease-in-out
-                    ${isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 dark:border-gray-600'}
-                    hover:border-primary hover:bg-primary/5
-                  `}
-                >
-                  <input {...getInputProps()} />
-                  <Upload className="h-10 w-10 mx-auto mb-2 text-gray-400" />
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Drag and drop a file here, or click to select
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Maximum file size: 10MB
-                  </p>
-                </div>
+        <Dialog open={isDesktopOpen} onOpenChange={setIsDesktopOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Upload Attachment</DialogTitle>
+            </DialogHeader>
+            
+            {!previewFile ? (
+              <div 
+                {...getRootProps()} 
+                className={`
+                  border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+                  transition-colors duration-200 ease-in-out
+                  ${isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 dark:border-gray-600'}
+                  hover:border-primary hover:bg-primary/5
+                `}
+              >
+                <input {...getInputProps()} />
+                <Upload className="h-10 w-10 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Drag and drop a file here, or click to select
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Maximum file size: 10MB
+                </p>
               </div>
-              
-              {/* Mobile-optimized buttons */}
-              <div className="md:hidden space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+            ) : (
+              <FilePreview />
+            )}
+            
+            <DialogFooter className="sm:justify-between">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel}
+                disabled={isUploading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSubmit} 
+                disabled={!previewFile || isUploading}
+              >
+                {isUploading ? 'Uploading...' : 'Send'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Mobile View */}
+      <div className="md:hidden">
+        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+          <SheetTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              disabled={isUploading}
+              title="Attach file"
+            >
+              {isUploading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Paperclip className="h-5 w-5" />
+              )}
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="h-auto">
+            {!previewFile ? (
+              <div className="space-y-6 py-6">
+                <h3 className="text-lg font-medium text-center">Share Media</h3>
+                <div className="grid grid-cols-2 gap-4">
                   <button
                     onClick={() => {
                       const input = document.createElement('input');
                       input.type = 'file';
                       input.accept = 'image/*';
-                      input.capture = 'environment'; // Use the back camera
+                      input.capture = 'environment';
                       input.onchange = (e) => {
                         const file = (e.target as HTMLInputElement).files?.[0];
                         if (file) onDrop([file]);
                       };
                       input.click();
                     }}
-                    className="flex flex-col items-center justify-center p-4 border rounded-lg bg-gray-50 dark:bg-gray-800"
+                    className="flex flex-col items-center justify-center p-4 border rounded-xl bg-gray-50 dark:bg-gray-800"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mb-2 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                      <circle cx="12" cy="13" r="4"></circle>
-                    </svg>
-                    <span className="text-sm font-medium">Take Photo</span>
+                    <Camera className="h-10 w-10 mb-2 text-primary" />
+                    <span className="text-sm font-medium">Camera</span>
                   </button>
                   
                   <button
@@ -163,13 +232,9 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
                       };
                       input.click();
                     }}
-                    className="flex flex-col items-center justify-center p-4 border rounded-lg bg-gray-50 dark:bg-gray-800"
+                    className="flex flex-col items-center justify-center p-4 border rounded-xl bg-gray-50 dark:bg-gray-800"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mb-2 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                      <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                      <polyline points="21 15 16 10 5 21"></polyline>
-                    </svg>
+                    <Image className="h-10 w-10 mb-2 text-primary" />
                     <span className="text-sm font-medium">Gallery</span>
                   </button>
                 </div>
@@ -185,60 +250,39 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
                     };
                     input.click();
                   }}
-                  className="flex justify-center items-center w-full p-3 border rounded-lg bg-gray-50 dark:bg-gray-800"
+                  className="w-full flex justify-center items-center p-4 border rounded-xl bg-gray-50 dark:bg-gray-800"
                 >
-                  <File className="h-5 w-5 mr-2 text-primary" />
-                  <span className="text-sm font-medium">Other Files</span>
+                  <File className="h-6 w-6 mr-2 text-primary" />
+                  <span className="text-sm font-medium">Document</span>
                 </button>
                 
-                <p className="text-xs text-center text-gray-400 mt-1">
+                <p className="text-xs text-center text-gray-500">
                   Maximum file size: 10MB
                 </p>
               </div>
-            </>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div className="mb-3">
-                  {getFileIcon(previewFile.file)}
-                </div>
-                <div className="w-full truncate text-center">
-                  <p className="font-medium truncate">{previewFile.file.name}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {(previewFile.file.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
+            ) : (
+              <div className="py-6">
+                <FilePreview />
+                <div className="flex justify-end space-x-2 mt-6">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleCancel}
+                    disabled={isUploading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleSubmit} 
+                    disabled={!previewFile || isUploading}
+                  >
+                    {isUploading ? 'Uploading...' : 'Send'}
+                  </Button>
                 </div>
               </div>
-              
-              {isUploading && (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                    <span>Uploading...</span>
-                    <span>{uploadProgress}%</span>
-                  </div>
-                  <Progress value={uploadProgress} className="h-2" />
-                </div>
-              )}
-            </div>
-          )}
-          
-          <DialogFooter className="sm:justify-between">
-            <Button 
-              variant="outline" 
-              onClick={handleCancel}
-              disabled={isUploading}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSubmit} 
-              disabled={!previewFile || isUploading}
-            >
-              {isUploading ? 'Uploading...' : 'Send'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            )}
+          </SheetContent>
+        </Sheet>
+      </div>
     </>
   );
 }

@@ -1,66 +1,45 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import EmojiPickerReact, { Theme, EmojiStyle, EmojiClickData } from 'emoji-picker-react';
 import { Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { 
+import {
   Dialog,
   DialogContent,
-  DialogPortal,
-  DialogOverlay
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { useTheme } from 'next-themes';
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface EmojiPickerProps {
   onEmojiSelect: (emoji: string) => void;
 }
 
 export function EmojiPicker({ onEmojiSelect }: EmojiPickerProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [isDesktopPickerOpen, setIsDesktopPickerOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const { theme } = useTheme();
-
-  // Handle clicking outside to close the picker
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        pickerRef.current && 
-        !pickerRef.current.contains(event.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
   const handleEmojiClick = (emojiData: EmojiClickData) => {
     onEmojiSelect(emojiData.emoji);
-    setIsOpen(false);
+    setIsDesktopPickerOpen(false);
+    setIsSheetOpen(false);
   };
 
   return (
     <>
       {/* Desktop emoji picker */}
-      <div className="relative hidden md:block">
+      <div className="hidden md:block relative">
         <Button 
-          ref={buttonRef}
           variant="ghost" 
           size="icon"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => setIsDesktopPickerOpen(!isDesktopPickerOpen)}
           title="Add emoji"
         >
           <Smile className="h-5 w-5" />
         </Button>
         
-        {isOpen && (
+        {isDesktopPickerOpen && (
           <div 
-            ref={pickerRef}
             className="absolute bottom-12 right-0 z-50 shadow-lg rounded-lg overflow-hidden"
           >
             <EmojiPickerReact
@@ -80,19 +59,19 @@ export function EmojiPicker({ onEmojiSelect }: EmojiPickerProps) {
         )}
       </div>
       
-      {/* Mobile emoji picker with dialog */}
+      {/* Mobile emoji picker with bottom sheet */}
       <div className="md:hidden">
-        <Button 
-          variant="ghost" 
-          size="icon"
-          onClick={() => setIsOpen(true)}
-          title="Add emoji"
-        >
-          <Smile className="h-5 w-5" />
-        </Button>
-        
-        <Dialog.Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <Dialog.DialogContent className="p-0 max-w-[350px] h-[60vh] overflow-hidden">
+        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+          <SheetTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              title="Add emoji"
+            >
+              <Smile className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="h-[50vh] p-0">
             <div className="h-full w-full">
               <EmojiPickerReact
                 onEmojiClick={handleEmojiClick}
@@ -108,8 +87,8 @@ export function EmojiPicker({ onEmojiSelect }: EmojiPickerProps) {
                 }}
               />
             </div>
-          </Dialog.DialogContent>
-        </Dialog.Dialog>
+          </SheetContent>
+        </Sheet>
       </div>
     </>
   );
