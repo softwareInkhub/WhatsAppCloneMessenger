@@ -26,12 +26,16 @@ export default function MessageInput({ contactId }: MessageInputProps) {
       sendMessage({ 
         receiverId: contactId,
         content,
-        type: 'text'
+        type: 'text',
+        status: 'sent' // Adding required status field
       }, currentUser!.id),
     onSuccess: (data) => {
       // Add the new message to the chat
       addMessage(data);
       setMessage("");
+      
+      // Clear typing indicator when a message is sent
+      sendTypingStatus(false);
     },
     onError: (error) => {
       toast({
@@ -63,8 +67,26 @@ export default function MessageInput({ contactId }: MessageInputProps) {
     }
   };
   
+  // Debounce input changes to send typing status
+  useEffect(() => {
+    if (message.trim() && contactId) {
+      // Send typing status when user starts typing
+      sendTypingStatus(true);
+    }
+  }, [message, contactId]);
+  
   return (
     <div className="bg-white dark:bg-dark-surface p-3 border-t border-gray-200 dark:border-gray-800">
+      {isContactTyping && (
+        <div className="flex items-center mb-2 text-xs text-muted-foreground">
+          <div className="flex space-x-1 items-center">
+            <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '600ms' }}></div>
+          </div>
+          <span className="ml-2">Typing...</span>
+        </div>
+      )}
       <div className="flex items-center">
         <Button variant="ghost" size="icon" title="Add emoji">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

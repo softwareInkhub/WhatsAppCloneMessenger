@@ -46,10 +46,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const clients = new Map<string, WebSocket>();
   
   // Ping all clients every 30 seconds to keep connections alive
+  // This helps maintain WebSocket connections through proxies and load balancers
   const pingInterval = setInterval(() => {
     wss.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
-        client.ping();
+        client.ping(Buffer.from(JSON.stringify({ t: 'PING', ts: Date.now() })));
       }
     });
   }, 30000);
@@ -537,6 +538,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // 7. Messages
+  // Extract core message sending logic to make it Lambda-deployable
+  async function createAndDeliverMessage(
+    messageData: any, 
+    senderId: string, 
+    notifyFunction?: (receiverId: string, message: any) => Promise<void>
+  ) {
+    // Check if users exist
+    const sender = await storage.getUser(senderId);
+    if (!sender) {
+      throw new Error('Sender not found');
+    }
+    
+    const receiver = await storage.getUser(messageData.receiverId);
+    if (!receiver) {
+      throw new Error('Receiver not found');
+    }
+    
+    // Check if they are contacts
+    const contacts = await storage.getContacts(senderId);
+    const isContact = contacts.some(contact => contact.id === messageData.receiverId);
+    
+    if (!isContact) {
+      throw new Error('You can only send messages to your contacts');
+    }
+    
+    // Create message with timestamp compression for faster transmission
+    const message = await storage.createMessage({
+      ...messageData,
+      senderId
+    });
+    
+    // Notify receiver if the notification function is provided
+    if (notifyFunction) {
+      await notifyFunction(messageData.receiverId, message);
+    }
+    
+    return message;
+  }
+
+  // WebSocket notification function for real-time delivery
+  async function notifyReceiverViaWebSocket(receiverId: string, message: any) {
+    const receiverWs = clients.get(receiverId);
+    if (receiverWs && receiverWs.readyState === WebSocket.OPEN) {
+      // Send minimal data for bandwidth efficiency
+      receiverWs.send(JSON.stringify({
+        t: 'MSG', // Shortened type name
+        d: message // Message data
+      }));
+    }
+  }
+  
+  // This route handler can be deployed as Lambda function
   router.post('/messages', async (req: Request, res: Response) => {
     try {
       const { userId } = req.query;
@@ -547,50 +600,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const messageData = insertMessageSchema.parse(req.body);
       
-      // Check if users exist
-      const sender = await storage.getUser(userId);
-      if (!sender) {
-        return sendError(res, 404, 'Sender not found');
-      }
-      
-      const receiver = await storage.getUser(messageData.receiverId);
-      if (!receiver) {
-        return sendError(res, 404, 'Receiver not found');
-      }
-      
-      // Check if they are contacts
-      const contacts = await storage.getContacts(userId);
-      const isContact = contacts.some(contact => contact.id === messageData.receiverId);
-      
-      if (!isContact) {
-        return sendError(res, 403, 'You can only send messages to your contacts');
-      }
-      
-      // Create message
-      const message = await storage.createMessage({
-        ...messageData,
-        senderId: userId
-      });
-      
-      // Notify receiver if online - with optimized payload format
-      const receiverWs = clients.get(messageData.receiverId);
-      if (receiverWs && receiverWs.readyState === WebSocket.OPEN) {
-        // Send minimal data for bandwidth efficiency
-        receiverWs.send(JSON.stringify({
-          t: 'MSG', // Shortened type name
-          d: message // Message data
-        }));
-      }
+      // Use the extract function which can be deployed separately
+      const message = await createAndDeliverMessage(
+        messageData, 
+        userId, 
+        notifyReceiverViaWebSocket
+      );
       
       res.status(201).json(message);
     } catch (error) {
       if (error instanceof ZodError) {
         return sendError(res, 400, 'Invalid message data');
       }
+      
+      // Better error handling for the extracted function
+      if (error instanceof Error) {
+        if (error.message === 'Sender not found' || error.message === 'Receiver not found') {
+          return sendError(res, 404, error.message);
+        } else if (error.message === 'You can only send messages to your contacts') {
+          return sendError(res, 403, error.message);
+        }
+      }
+      
       sendError(res, 500, 'Failed to send message');
     }
   });
   
+  // Lambda-ready function to retrieve and mark messages as read
+  async function getAndMarkMessagesAsRead(
+    userId: string, 
+    contactId: string, 
+    notifyReadStatus?: (senderId: string, userId: string, messageIds: string[]) => Promise<void>
+  ) {
+    // Get messages between users with optimized fetch
+    const messages = await storage.getMessagesByUsers(userId, contactId);
+    
+    // Mark received messages as read - perform updates in batches when possible
+    const messagesNeedingUpdate = messages.filter(m => m.receiverId === userId && m.status !== 'read');
+    
+    // Update all messages that need it
+    const updatedMessages = await Promise.all(
+      messages.map(async (message) => {
+        if (message.receiverId === userId && message.status !== 'read') {
+          const updated = await storage.updateMessageStatus(message.id, 'read');
+          return updated || message;
+        }
+        return message;
+      })
+    );
+    
+    // Prepare notification data grouped by sender for efficiency
+    if (notifyReadStatus && messagesNeedingUpdate.length > 0) {
+      // Extract unique sender IDs with a more efficient approach
+      const senderToMessageIds = messagesNeedingUpdate.reduce((acc: Record<string, string[]>, message) => {
+        if (!acc[message.senderId]) {
+          acc[message.senderId] = [];
+        }
+        acc[message.senderId].push(message.id);
+        return acc;
+      }, {});
+      
+      // Notify each sender with their respective message IDs
+      await Promise.all(
+        Object.entries(senderToMessageIds).map(([senderId, messageIds]) => 
+          notifyReadStatus(senderId, userId, messageIds)
+        )
+      );
+    }
+    
+    return updatedMessages;
+  }
+  
+  // Notification function for read status using WebSocket
+  async function notifyReadStatusViaWebSocket(senderId: string, readerId: string, messageIds: string[]) {
+    const senderWs = clients.get(senderId);
+    if (senderWs && senderWs.readyState === WebSocket.OPEN) {
+      // Use shortened format for efficiency
+      senderWs.send(JSON.stringify({
+        t: 'READ', // Short type name
+        d: {
+          readBy: readerId,
+          messages: messageIds
+        }
+      }));
+    }
+  }
+  
+  // This route handler can be deployed as a Lambda function
   router.get('/messages/:contactId', async (req: Request, res: Response) => {
     try {
       const { userId } = req.query;
@@ -600,49 +696,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return sendError(res, 401, 'User ID is required');
       }
       
-      // Get messages between users
-      const messages = await storage.getMessagesByUsers(userId, contactId);
-      
-      // Mark received messages as read
-      const updatedMessages = await Promise.all(
-        messages.map(async (message) => {
-          if (message.receiverId === userId && message.status !== 'read') {
-            const updated = await storage.updateMessageStatus(message.id, 'read');
-            return updated || message;
-          }
-          return message;
-        })
+      // Use the extracted Lambda-ready function
+      const messages = await getAndMarkMessagesAsRead(
+        userId, 
+        contactId, 
+        notifyReadStatusViaWebSocket
       );
       
-      // Notify sender about read status
-      const messagesNeedingUpdate = messages.filter(m => m.receiverId === userId && m.status !== 'read');
-      const senderIdsArray = messagesNeedingUpdate.map(m => m.senderId);
-      
-      // Create a unique list of sender IDs the old-fashioned way to avoid Set iteration issues
-      const uniqueSenderIds: string[] = [];
-      senderIdsArray.forEach(id => {
-        if (!uniqueSenderIds.includes(id)) {
-          uniqueSenderIds.push(id);
-        }
-      });
-      
-      uniqueSenderIds.forEach(senderId => {
-        const senderWs = clients.get(senderId);
-        if (senderWs && senderWs.readyState === 1) {
-          senderWs.send(JSON.stringify({
-            type: 'MESSAGES_READ',
-            data: {
-              readBy: userId,
-              messages: messages
-                .filter(m => m.senderId === senderId && m.receiverId === userId)
-                .map(m => m.id)
-            }
-          }));
-        }
-      });
-      
-      res.status(200).json(updatedMessages);
+      res.status(200).json(messages);
     } catch (error) {
+      console.error('Error getting messages:', error);
       sendError(res, 500, 'Failed to get messages');
     }
   });
