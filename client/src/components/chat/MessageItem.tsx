@@ -19,10 +19,25 @@ export default function MessageItem({ message }: MessageItemProps) {
   // Scroll to the message when it's highlighted
   useEffect(() => {
     if (isHighlighted && messageRef.current) {
-      messageRef.current.scrollIntoView({ 
-        behavior: "smooth", 
-        block: "center" 
+      // Use requestAnimationFrame to ensure the DOM has been painted
+      requestAnimationFrame(() => {
+        messageRef.current?.scrollIntoView({ 
+          behavior: "smooth", 
+          block: "center" 
+        });
       });
+      
+      // Add a visual pulse effect by toggling a class
+      if (messageRef.current) {
+        messageRef.current.classList.add('message-highlight-pulse');
+        
+        // Remove the pulse effect after animation completes
+        setTimeout(() => {
+          if (messageRef.current) {
+            messageRef.current.classList.remove('message-highlight-pulse');
+          }
+        }, 2000);
+      }
     }
   }, [isHighlighted]);
   
@@ -39,7 +54,7 @@ export default function MessageItem({ message }: MessageItemProps) {
           isSent
             ? "bg-chat-sent dark:bg-primary-dark text-gray-800 dark:text-white"
             : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
-        } ${isHighlighted ? "ring-2 ring-orange-400 dark:ring-orange-500 animate-pulse" : ""}`}
+        } ${isHighlighted ? "ring-2 ring-orange-400 dark:ring-orange-500" : ""}`}
       >
         {/* Message content based on type */}
         {message.type === "text" && <p>{message.content}</p>}

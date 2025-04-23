@@ -16,26 +16,45 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
   const { activeContact, messages, loading, highlightedMessageId } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const previousMessagesLength = useRef<number>(0);
+  const previousActiveContact = useRef<string | null>(null);
   
-  // Scroll to bottom when new messages arrive or activeContact changes
+  // Scroll to bottom when activeContact changes - immediately without animation
   useEffect(() => {
-    // If we're highlighting a specific message, don't auto-scroll to bottom
-    if (highlightedMessageId) return;
+    if (!activeContact) return;
     
-    // Immediately scroll to bottom without animation on first load
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "auto" });
-    }
+    const isNewConversation = previousActiveContact.current !== activeContact.id;
+    previousActiveContact.current = activeContact.id;
+    
+    // Only use this effect for contact changes, not for initial load or new messages
+    if (!isNewConversation) return;
+    
+    // Force an immediate scroll to the bottom without animation
+    requestAnimationFrame(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+      }
+    });
   }, [activeContact]);
   
-  // Scroll to bottom with smooth animation on new messages
+  // Handle scrolling for new messages
   useEffect(() => {
-    // If we're highlighting a specific message, don't auto-scroll to bottom
+    // If we're highlighting a specific message, don't auto-scroll
     if (highlightedMessageId) return;
     
-    // Smooth scroll for new incoming messages
-    if (messagesEndRef.current) {
+    const isNewMessage = messages.length > previousMessagesLength.current;
+    previousMessagesLength.current = messages.length;
+    
+    // For new incoming messages, scroll smoothly
+    if (isNewMessage && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+    // For initial load of a conversation, scroll immediately
+    else if (messages.length > 0 && messagesEndRef.current) {
+      // Using requestAnimationFrame to ensure the DOM has updated
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+      });
     }
   }, [messages, highlightedMessageId]);
   
