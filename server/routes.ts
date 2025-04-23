@@ -174,67 +174,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   router.post('/auth/verify-otp', async (req: Request, res: Response) => {
     try {
-      const data = otpVerificationSchema.parse(req.body);
+      const { phoneNumber, verificationCode: code, code: specialCode } = req.body;
+      
+      if (!phoneNumber) {
+        return sendError(res, 400, 'Phone number is required');
+      }
+      
+      // Special case for Firebase verified numbers
+      const isFirebaseVerified = specialCode === "firebase-verified";
       
       // Log verification attempt
-      console.log(`OTP verification attempt for phone: ${data.phoneNumber}, code length: ${data.verificationCode.length}`);
+      console.log(`OTP verification attempt for phone: ${phoneNumber}, Firebase verified: ${isFirebaseVerified}`);
       
-      // Validate OTP 
       let isValid = false;
       
-      // In a real production app, we would use this:
-      // isValid = await storage.verifyOTP(data.phoneNumber, data.verificationCode);
-      
-      // For development mode - use a fixed code or accept valid 6-digit codes
-      const isDevelopment = process.env.NODE_ENV === 'development';
-      if (isDevelopment) {
-        if (data.verificationCode === "123456") {
-          isValid = true;
-          console.log(`DEVELOPMENT MODE: Validated fixed OTP for ${data.phoneNumber}`);
-        } else {
-          // For ease of development, accept any 6-digit numeric code
-          isValid = data.verificationCode.length === 6 && /^\d+$/.test(data.verificationCode);
-          console.log(`DEVELOPMENT MODE: ${isValid ? "Accepted" : "Rejected"} OTP ${data.verificationCode} for ${data.phoneNumber}`);
-        }
+      if (isFirebaseVerified) {
+        // If verified by Firebase, we trust the verification
+        console.log(`Firebase verified phone number: ${phoneNumber}`);
+        isValid = true;
       } else {
-        // In production mode, only accept valid codes
-        isValid = await storage.verifyOTP(data.phoneNumber, data.verificationCode);
+        // Try to parse with schema for traditional OTP verification
+        try {
+          const data = otpVerificationSchema.parse(req.body);
+          
+          // For development mode - use a fixed code or accept valid 6-digit codes
+          const isDevelopment = process.env.NODE_ENV === 'development';
+          if (isDevelopment) {
+            if (data.verificationCode === "123456") {
+              isValid = true;
+              console.log(`DEVELOPMENT MODE: Validated fixed OTP for ${data.phoneNumber}`);
+            } else {
+              // For ease of development, accept any 6-digit numeric code
+              isValid = data.verificationCode.length === 6 && /^\d+$/.test(data.verificationCode);
+              console.log(`DEVELOPMENT MODE: ${isValid ? "Accepted" : "Rejected"} OTP ${data.verificationCode} for ${data.phoneNumber}`);
+            }
+          } else {
+            // In production mode, only accept valid codes
+            isValid = await storage.verifyOTP(data.phoneNumber, data.verificationCode);
+          }
+        } catch (error) {
+          // Invalid schema, not using Firebase and not valid OTP
+          console.error('Failed to parse verification data:', error);
+          isValid = false;
+        }
       }
       
       if (!isValid) {
-        console.log(`OTP verification failed for phone: ${data.phoneNumber}`);
+        console.log(`OTP verification failed for phone: ${phoneNumber}`);
         return sendError(res, 401, 'Invalid verification code');
       }
       
       // Check if user exists with this phone
-      const existingUser = await storage.getUserByPhone(data.phoneNumber);
+      const existingUser = await storage.getUserByPhone(phoneNumber);
       
       if (existingUser) {
         // User exists, return user data
-        return res.status(200).json({ 
-          message: 'OTP verified successfully',
-          user: existingUser,
-          isNewUser: false
-        });
+        return res.status(200).json(existingUser);
       } else {
-        // New user, return success for registration
-        return res.status(200).json({ 
-          message: 'OTP verified successfully',
-          isNewUser: true, 
-          phoneNumber: data.phoneNumber
-        });
+        // User not found
+        return sendError(res, 404, 'User not found');
       }
     } catch (error) {
-      if (error instanceof ZodError) {
-        return sendError(res, 400, 'Invalid verification data');
-      }
+      console.error('Error during OTP verification:', error);
       sendError(res, 500, 'Failed to verify OTP');
     }
   });
   
+  // Get current user endpoint
+  router.get('/api/user', async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.query;
+      
+      if (!userId || typeof userId !== 'string') {
+        return sendError(res, 401, 'Authentication required');
+      }
+      
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return sendError(res, 404, 'User not found');
+      }
+      
+      // Remove sensitive info
+      const { verificationCode, ...userResponse } = user;
+      
+      res.status(200).json(userResponse);
+    } catch (error) {
+      console.error('Get user error:', error);
+      sendError(res, 500, 'Failed to get user');
+    }
+  });
+  
+  // Logout endpoint
+  router.post('/auth/logout', async (req: Request, res: Response) => {
+    try {
+      // In a session-based implementation, we would destroy the session
+      // For now, we'll just return success
+      console.log('User logged out');
+      res.status(200).json({ message: 'Logged out successfully' });
+    } catch (error) {
+      console.error('Logout error:', error);
+      sendError(res, 500, 'Failed to logout user');
+    }
+  });
+
   // 2. User Registration
   router.post('/auth/register', async (req: Request, res: Response) => {
     try {
+      // Check if verified flag is present from Firebase verification
+      const isFirebaseVerified = req.body.verified === true;
+      
+      // Log Firebase verification status
+      console.log(`Registration attempt with Firebase verification: ${isFirebaseVerified}`);
+      
+      // We'll parse the user data with Zod
       const userData = insertUserSchema.parse(req.body);
       
       // Thorough check if user already exists
@@ -258,8 +311,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return sendError(res, 409, 'Username already taken. Please choose a different username.');
       }
       
+      // Set verified status based on Firebase verification
+      const finalUserData = {
+        ...userData,
+        verified: isFirebaseVerified
+      };
+      
       // Create user
-      const user = await storage.createUser(userData);
+      const user = await storage.createUser(finalUserData);
       
       // Remove sensitive info
       const { verificationCode, ...userResponse } = user;
@@ -267,8 +326,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(userResponse);
     } catch (error) {
       if (error instanceof ZodError) {
-        return sendError(res, 400, 'Invalid user data');
+        const errorMessages = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        console.error('Validation error during registration:', errorMessages);
+        return sendError(res, 400, `Invalid user data: ${errorMessages}`);
       }
+      console.error('Registration error:', error);
       sendError(res, 500, 'Failed to register user');
     }
   });

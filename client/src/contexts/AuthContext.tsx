@@ -1,127 +1,225 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { User } from "@shared/schema";
-import { useToast } from "@/hooks/use-toast";
+import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import { User as FirebaseUser } from 'firebase/auth';
+import { 
+  auth, 
+  subscribeToAuthChanges, 
+  sendOTP, 
+  verifyOTP, 
+  createRecaptchaVerifier, 
+  logoutUser 
+} from '@/lib/firebase';
+import { User } from '@shared/schema';
+import { apiRequest } from '@/lib/queryClient';
 
 interface AuthContextType {
   currentUser: User | null;
+  firebaseUser: FirebaseUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  phoneNumber: string;
-  isNewUser: boolean;
-  login: (user: User) => void;
-  logout: () => void;
-  setPhoneNumber: (phone: string) => void;
-  setIsNewUser: (isNew: boolean) => void;
+  error: string | null;
+  sendVerificationCode: (phoneNumber: string, recaptchaContainerId: string) => Promise<any>;
+  confirmVerificationCode: (confirmationResult: any, verificationCode: string) => Promise<User>;
+  registerUser: (userData: { username: string; email: string; phoneNumber: string }) => Promise<User>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [phoneNumber, setPhoneNumberState] = useState(() => {
-    return localStorage.getItem("whatspe_phone") || "";
-  });
-  const [isNewUser, setIsNewUserState] = useState(() => {
-    return localStorage.getItem("whatspe_is_new_user") === "true";
-  });
-  const { toast } = useToast();
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log("AuthProvider - Checking localStorage for user data");
-    
-    // Try to load user from localStorage on initial load
-    const storedUser = localStorage.getItem("whatspe_user");
+    console.log('AuthProvider - Checking localStorage for user data');
+    // Check if user data exists in local storage
+    const storedUser = localStorage.getItem('currentUser');
     if (storedUser) {
       try {
-        const parsedUser = JSON.parse(storedUser);
-        console.log("Found user in localStorage, restoring session:", parsedUser);
-        setCurrentUser(parsedUser);
-        setIsAuthenticated(true);
-      } catch (error) {
-        console.error("Failed to parse stored user:", error);
-        localStorage.removeItem("whatspe_user");
+        const userData = JSON.parse(storedUser);
+        console.log('Found user in localStorage, restoring session:', userData);
+        setCurrentUser(userData);
+      } catch (e) {
+        console.error('Failed to parse user data from localStorage:', e);
+        localStorage.removeItem('currentUser');
       }
-    } else {
-      console.log("No user found in localStorage");
     }
     
-    setIsLoading(false);
+    // Subscribe to Firebase auth state changes
+    const unsubscribe = subscribeToAuthChanges((user) => {
+      setFirebaseUser(user);
+      setIsLoading(false);
+      
+      if (!user && currentUser) {
+        // If Firebase user is null but we have a currentUser, fetch user data from API
+        // This handles app refreshes when Firebase session might be lost but API session is valid
+        fetchUserData();
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const login = (user: User) => {
-    console.log("Logging in user:", user);
-    setCurrentUser(user);
-    setIsAuthenticated(true);
-    
-    // Save user and their phone number to localStorage
-    localStorage.setItem("whatspe_user", JSON.stringify(user));
-    localStorage.setItem("whatspe_phone", user.phoneNumber);
-    
-    // Clear the "new user" flag since they're now logged in
-    setIsNewUserState(false);
-    localStorage.removeItem("whatspe_is_new_user");
-    
-    toast({
-      title: "Logged in successfully",
-      description: `Welcome ${user.username}!`,
-    });
+  const fetchUserData = async () => {
+    try {
+      const response = await apiRequest('GET', '/api/user');
+      
+      if (response.ok) {
+        const userData = await response.json();
+        setCurrentUser(userData);
+        localStorage.setItem('currentUser', JSON.stringify(userData));
+      } else {
+        // If API request fails, clear local user data
+        setCurrentUser(null);
+        localStorage.removeItem('currentUser');
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setError('Failed to fetch user data');
+    }
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-    setIsAuthenticated(false);
-    setPhoneNumberState("");
-    setIsNewUserState(false);
+  const sendVerificationCode = async (phoneNumber: string, recaptchaContainerId: string) => {
+    setIsLoading(true);
+    setError(null);
     
-    // Clear all localStorage items
-    localStorage.removeItem("whatspe_user");
-    localStorage.removeItem("whatspe_phone");
-    localStorage.removeItem("whatspe_is_new_user");
+    try {
+      // Format the phone number for Firebase (add + if not present)
+      const formattedPhoneNumber = phoneNumber.startsWith('+') 
+        ? phoneNumber 
+        : `+${phoneNumber}`;
+      
+      // Create a reCAPTCHA verifier
+      const recaptchaVerifier = createRecaptchaVerifier(recaptchaContainerId);
+      
+      // Send OTP to the phone number
+      const confirmationResult = await sendOTP(formattedPhoneNumber, recaptchaVerifier);
+      return confirmationResult;
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to send verification code';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const confirmVerificationCode = async (confirmationResult: any, verificationCode: string) => {
+    setIsLoading(true);
+    setError(null);
     
-    toast({
-      title: "Logged out",
-      description: "You have been logged out successfully",
-    });
+    try {
+      // Verify the OTP
+      const firebaseUser = await verifyOTP(confirmationResult, verificationCode);
+      setFirebaseUser(firebaseUser);
+      
+      // Check if the user exists in the backend
+      const response = await apiRequest('POST', '/api/auth/verify-otp', {
+        phoneNumber: firebaseUser.phoneNumber,
+        code: "firebase-verified" // Special code to indicate Firebase verified the OTP
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        setCurrentUser(userData);
+        localStorage.setItem('currentUser', JSON.stringify(userData));
+        return userData;
+      } else if (response.status === 404) {
+        // User not found, return null to indicate registration is needed
+        return null;
+      } else {
+        throw new Error('Failed to verify user with backend');
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to verify code';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Update setter functions to also update localStorage
-  const setPhoneNumber = (phone: string) => {
-    console.log("Setting phone number:", phone);
-    localStorage.setItem("whatspe_phone", phone);
-    setPhoneNumberState(phone);
+  const registerUser = async (userData: { username: string; email: string; phoneNumber: string }) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      if (!firebaseUser) {
+        throw new Error('Phone verification required before registration');
+      }
+      
+      const response = await apiRequest('POST', '/api/auth/register', {
+        ...userData,
+        phoneNumber: firebaseUser.phoneNumber || userData.phoneNumber,
+        verified: true // Phone already verified by Firebase
+      });
+      
+      if (response.ok) {
+        const newUser = await response.json();
+        setCurrentUser(newUser);
+        localStorage.setItem('currentUser', JSON.stringify(newUser));
+        return newUser;
+      } else {
+        const errorData = await response.json().catch(() => ({ message: 'Registration failed' }));
+        throw new Error(errorData.message || 'Registration failed');
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || 'Registration failed';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const setIsNewUser = (isNew: boolean) => {
-    console.log("Setting isNewUser:", isNew);
-    localStorage.setItem("whatspe_is_new_user", isNew.toString());
-    setIsNewUserState(isNew);
+  const logout = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Sign out from Firebase
+      await logoutUser();
+      
+      // Call backend logout API
+      await apiRequest('POST', '/api/auth/logout');
+      
+      // Clear user state
+      setCurrentUser(null);
+      setFirebaseUser(null);
+      localStorage.removeItem('currentUser');
+    } catch (error: any) {
+      const errorMessage = error.message || 'Logout failed';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        currentUser,
-        isAuthenticated,
-        isLoading,
-        phoneNumber,
-        isNewUser,
-        login,
-        logout,
-        setPhoneNumber,
-        setIsNewUser,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = {
+    currentUser,
+    firebaseUser,
+    isAuthenticated: !!currentUser,
+    isLoading,
+    error,
+    sendVerificationCode,
+    confirmVerificationCode,
+    registerUser,
+    logout
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 }
