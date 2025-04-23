@@ -272,4 +272,16 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+import { DynamoDBStorage } from './dynamo-storage';
+import { log } from './vite';
+
+// Choose the storage implementation based on environment
+const USE_DYNAMODB = true; // Set to true to use DynamoDB, false to use in-memory storage
+
+// Create the appropriate storage instance
+export const storage = USE_DYNAMODB 
+  ? new DynamoDBStorage() 
+  : new MemStorage();
+
+// Log the selected storage implementation
+log(`Using ${USE_DYNAMODB ? 'DynamoDB' : 'in-memory'} storage implementation`);
