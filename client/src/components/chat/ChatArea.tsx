@@ -13,13 +13,31 @@ interface ChatAreaProps {
 }
 
 export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) {
-  const { activeContact, messages, loading } = useChat();
+  const { activeContact, messages, loading, highlightedMessageId } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   
-  // Scroll to bottom when new messages arrive
+  // Scroll to bottom when new messages arrive or activeContact changes
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    // If we're highlighting a specific message, don't auto-scroll to bottom
+    if (highlightedMessageId) return;
+    
+    // Immediately scroll to bottom without animation on first load
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+    }
+  }, [activeContact]);
+  
+  // Scroll to bottom with smooth animation on new messages
+  useEffect(() => {
+    // If we're highlighting a specific message, don't auto-scroll to bottom
+    if (highlightedMessageId) return;
+    
+    // Smooth scroll for new incoming messages
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, highlightedMessageId]);
   
   // Group messages by date with proper date handling to prevent invalid date errors
   const groupedMessages = messages.reduce((groups, message) => {
@@ -197,6 +215,7 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
       
       {/* Messages Container */}
       <div 
+        ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-4 space-y-4"
         style={{ 
           backgroundImage: 'url(https://i.pinimg.com/originals/7e/56/04/7e5604954d9573ec1fc8ce9a3d7e1465.jpg)',
