@@ -21,14 +21,36 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
   
-  // Group messages by date with safeDate to prevent invalid date errors
+  // Group messages by date with proper date handling to prevent invalid date errors
   const groupedMessages = messages.reduce((groups, message) => {
-    // Use safeDate utility to handle potential null or invalid dates
-    const date = safeDate(message.createdAt).toDateString();
-    if (!groups[date]) {
-      groups[date] = [];
+    // Convert the date safely, handling all edge cases
+    let dateObj: Date;
+    try {
+      // Use direct instantiation first (faster)
+      if (typeof message.createdAt === 'string') {
+        dateObj = new Date(message.createdAt);
+      } else if (message.createdAt instanceof Date) {
+        dateObj = message.createdAt;
+      } else {
+        // Fall back to current date if null/undefined
+        dateObj = new Date();
+      }
+      
+      // Check if date is valid
+      if (isNaN(dateObj.getTime())) {
+        dateObj = new Date(); // Use current date as fallback if invalid
+      }
+    } catch (e) {
+      // Handle any unexpected errors
+      console.error("Error parsing date:", e);
+      dateObj = new Date();
     }
-    groups[date].push(message);
+    
+    const dateStr = dateObj.toDateString();
+    if (!groups[dateStr]) {
+      groups[dateStr] = [];
+    }
+    groups[dateStr].push(message);
     return groups;
   }, {} as Record<string, typeof messages>);
   
@@ -38,20 +60,31 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
     return name.slice(0, 2).toUpperCase();
   };
   
-  // Format date for display
+  // Format date for display with safe handling
   const formatDate = (dateString: string) => {
-    // Use safeDate utility to handle potential issues with date string
-    const date = safeDate(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    if (date.toDateString() === today.toDateString()) {
-      return "Today";
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return "Yesterday";
-    } else {
-      return format(date, "MMMM d, yyyy");
+    try {
+      // Direct date conversion is safer than using safeDate here
+      const date = new Date(dateString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "Unknown date";
+      }
+      
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      if (date.toDateString() === today.toDateString()) {
+        return "Today";
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        return "Yesterday";
+      } else {
+        return format(date, "MMMM d, yyyy");
+      }
+    } catch (e) {
+      console.error("Error formatting date:", e);
+      return "Unknown date";
     }
   };
   
@@ -98,20 +131,44 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
               <AvatarImage src={activeContact.profilePicture || ""} alt={activeContact.username} />
               <AvatarFallback>{getInitials(activeContact.username)}</AvatarFallback>
             </Avatar>
+            {/* Online status indicator with safe date handling */}
             <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ${
-              safeDate(activeContact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5 
-                ? "bg-green-500" 
-                : "bg-gray-400"
+              (() => {
+                try {
+                  const lastSeenDate = typeof activeContact.lastSeen === 'string' 
+                    ? new Date(activeContact.lastSeen)
+                    : activeContact.lastSeen instanceof Date 
+                      ? activeContact.lastSeen 
+                      : new Date();
+                  
+                  return lastSeenDate.getTime() > Date.now() - 1000 * 60 * 5 
+                    ? "bg-green-500" 
+                    : "bg-gray-400";
+                } catch (e) {
+                  return "bg-gray-400";
+                }
+              })()
             } border-2 border-white dark:border-gray-900`}></span>
           </div>
           
           <div className="ml-3">
             <div className="font-medium">{activeContact.username}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              {safeDate(activeContact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5 
-                ? "Online" 
-                : `Last seen ${format(safeDate(activeContact.lastSeen), "h:mm a")}`
-              }
+              {(() => {
+                try {
+                  const lastSeenDate = typeof activeContact.lastSeen === 'string' 
+                    ? new Date(activeContact.lastSeen)
+                    : activeContact.lastSeen instanceof Date 
+                      ? activeContact.lastSeen 
+                      : new Date();
+                  
+                  return lastSeenDate.getTime() > Date.now() - 1000 * 60 * 5 
+                    ? "Online" 
+                    : `Last seen ${format(lastSeenDate, "h:mm a")}`;
+                } catch (e) {
+                  return "Last seen recently";
+                }
+              })()}
             </div>
           </div>
         </div>
