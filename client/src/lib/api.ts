@@ -33,10 +33,15 @@ export const searchUsers = async (query: string) => {
 
 // Contacts API
 export const sendContactRequest = async (receiverId: string, userId: string) => {
+  console.log('Sending contact request with receiverId:', receiverId);
+  // Use the full schema format matching insertContactRequestSchema
+  const requestData: InsertContactRequest = {
+    receiverId: receiverId
+  };
   const res = await apiRequest(
     "POST", 
     `/api/contacts/request?userId=${userId}`, 
-    { receiverId }
+    requestData
   );
   return res.json();
 };

@@ -218,6 +218,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.query;
       
+      console.log('Contact request body:', req.body);
+      console.log('User ID:', userId);
+      
       if (!userId || typeof userId !== 'string') {
         return sendError(res, 401, 'User ID is required');
       }
@@ -267,8 +270,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(request);
     } catch (error) {
       if (error instanceof ZodError) {
-        return sendError(res, 400, 'Invalid request data');
+        console.error('Contact request validation error:', error.errors);
+        return sendError(res, 400, `Validation error: ${error.errors.map(e => e.message).join(', ')}`);
       }
+      console.error('Contact request error:', error);
       sendError(res, 500, 'Failed to create contact request');
     }
   });
