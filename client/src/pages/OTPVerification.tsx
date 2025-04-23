@@ -11,9 +11,10 @@ export default function OTPVerification() {
   // Redirect to login if phone number is not set
   React.useEffect(() => {
     if (!phoneNumber) {
-      setLocation("/");
+      console.log("Phone number not set, redirecting to /");
+      window.location.href = "/";
     }
-  }, [phoneNumber, setLocation]);
+  }, [phoneNumber]);
   
   return (
     <MainLayout>

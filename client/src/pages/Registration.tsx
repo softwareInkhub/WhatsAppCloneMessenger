@@ -11,9 +11,10 @@ export default function Registration() {
   // Redirect to login if phone number is not set or user is not new
   React.useEffect(() => {
     if (!phoneNumber || !isNewUser) {
-      setLocation("/");
+      console.log("Registration requirements not met, redirecting to /");
+      window.location.href = "/";
     }
-  }, [phoneNumber, isNewUser, setLocation]);
+  }, [phoneNumber, isNewUser]);
   
   return (
     <MainLayout>

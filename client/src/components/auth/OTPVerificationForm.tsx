@@ -22,7 +22,8 @@ export default function OTPVerificationForm() {
       if (data.isNewUser) {
         // New user, go to registration
         setIsNewUser(true);
-        setLocation("/register");
+        console.log("New user, navigating to /register");
+        window.location.href = "/register";
         toast({
           title: "OTP Verified",
           description: "Please complete your profile",
@@ -30,7 +31,8 @@ export default function OTPVerificationForm() {
       } else {
         // Existing user, log in
         login(data.user);
-        setLocation("/chat");
+        console.log("User logged in, navigating to /chat");
+        window.location.href = "/chat";
         toast({
           title: "Login Successful",
           description: "Welcome back!",
@@ -69,7 +71,8 @@ export default function OTPVerificationForm() {
   };
 
   const handleBackToLogin = () => {
-    setLocation("/");
+    console.log("Going back to login page");
+    window.location.href = "/";
   };
 
   const handleResendOTP = () => {

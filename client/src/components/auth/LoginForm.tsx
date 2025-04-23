@@ -35,15 +35,21 @@ export default function LoginForm() {
   const mutation = useMutation({
     mutationFn: requestOTP,
     onSuccess: (data) => {
+      console.log("OTP request successful:", data);
       setIsLoading(false);
       setPhoneNumber(data.phoneNumber);
-      setLocation("/verify");
+      
+      // Force navigation to verify page
+      console.log("Navigating to /verify");
+      window.location.href = "/verify";
+      
       toast({
         title: "OTP Sent",
         description: "Please check your phone for the verification code",
       });
     },
     onError: (error) => {
+      console.error("OTP request failed:", error);
       setIsLoading(false);
       toast({
         title: "Error",
