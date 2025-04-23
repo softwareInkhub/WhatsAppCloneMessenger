@@ -28,6 +28,7 @@ export default function MessageItem({ message }: MessageItemProps) {
   
   // Format time for display
   const formatTime = (dateString: string | Date) => {
+    if (!dateString) return "";
     return format(new Date(dateString), "h:mm a");
   };
   
