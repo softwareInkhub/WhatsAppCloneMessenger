@@ -58,8 +58,11 @@ export function parseBody<T>(event: APIGatewayProxyEvent): T | null {
   }
 }
 
-// Type for message data from API Gateway events
-interface MessageData {
+/**
+ * Type definition for message data coming from API Gateway events
+ * This ensures proper validation of incoming data for Lambda functions
+ */
+export interface MessageData {
   receiverId: string;
   content: string;
   type: "text" | "image" | "video" | "audio" | "document";
@@ -88,7 +91,7 @@ export async function sendMessageHandler(
     return createErrorResponse(401, 'User ID is required');
   }
   
-  const messageData = parseBody(event);
+  const messageData = parseBody<MessageData>(event);
   if (!messageData) {
     return createErrorResponse(400, 'Invalid message data');
   }
@@ -117,7 +120,10 @@ export async function sendMessageHandler(
     
     // Create message
     const message = await dbStorage.createMessage({
-      ...messageData,
+      receiverId: messageData.receiverId,
+      content: messageData.content,
+      type: messageData.type,
+      status: messageData.status,
       senderId: userId
     });
     
