@@ -2,6 +2,14 @@
 
 A scalable, cloud-native messaging platform with real-time communication capabilities and distributed architecture. This platform aims to provide faster and more reliable messaging than WhatsApp with robust cloud infrastructure.
 
+## Latest Improvements
+
+- 🚀 Enhanced WebSocket message handling for improved reliability
+- 🛡️ Added robust error recovery to prevent interface crashes
+- ⚡ Optimized message format compatibility between clients
+- 🔄 Improved real-time synchronization with smart field name handling
+- 🔒 Strengthened data validation for all communication channels
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -124,12 +132,14 @@ Key messaging functions are designed to be deployable as standalone AWS Lambda f
 - Contact list with online status
 
 ### Messaging
-- Real-time text messaging
+- Real-time text messaging with bidirectional synchronization
+- Cross-client compatibility with robust message format handling
 - Support for media types (images, video, audio, documents)
 - Read receipts with timestamps
-- Typing indicators
-- Message delivery status (sent, delivered, read)
+- Live typing indicators with optimized bandwidth usage
+- Message delivery status tracking (sent, delivered, read)
 - Offline message queueing
+- Enhanced error recovery for uninterrupted chat experience
 
 ### Performance Optimizations
 - WebSocket payload compression
@@ -637,6 +647,8 @@ export const handler = async (event, context) => {
 - Property name shortening (e.g., `senderId` -> `s`)
 - Message type abbreviation (e.g., `NEW_MESSAGE` -> `MSG`)
 - Optional GZIP compression for large payloads (>1KB)
+- Enhanced support for both verbose and compressed formats on client and server
+- Smart format detection and normalization for cross-client compatibility
 
 ```javascript
 // Example of property name optimization
@@ -650,6 +662,32 @@ function minifyMessage(message) {
     st: message.status,     // status -> st
     ts: message.createdAt   // timestamp -> ts
   };
+}
+```
+
+### Enhanced Error Handling and Recovery
+- Robust WebSocket connection management with automatic reconnection
+- Graceful handling of parsing errors without crashing the client
+- Comprehensive field normalization with fallbacks for all message types
+- Defensive coding against malformed WebSocket messages
+
+```javascript
+// Example of robust message parsing
+function handleMessage(data) {
+  try {
+    // Support for both full field names AND compressed field names
+    const id = data.id;
+    const senderId = data.senderId || data.sender_id || data.s;
+    const content = data.content || data.c || '';
+    
+    // Normalize data for client-side usage
+    if (id && senderId) {
+      // Process valid message
+    }
+  } catch (error) {
+    // Log error but keep WebSocket connection alive
+    console.error("Error processing message:", error);
+  }
 }
 ```
 
