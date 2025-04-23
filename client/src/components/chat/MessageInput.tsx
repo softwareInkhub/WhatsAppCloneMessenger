@@ -166,7 +166,7 @@ export default function MessageInput({ contactId }: MessageInputProps) {
   }, [message, contactId, sendTypingStatus]);
   
   return (
-    <div className="bg-white dark:bg-dark-surface p-3 border-t border-gray-200 dark:border-gray-800">
+    <div className="bg-white dark:bg-dark-surface p-2 sm:p-3 border-t border-gray-200 dark:border-gray-800">
       {isContactTyping && (
         <div className="flex items-center mb-2 text-xs text-muted-foreground">
           <div className="flex space-x-1 items-center">
@@ -178,41 +178,47 @@ export default function MessageInput({ contactId }: MessageInputProps) {
         </div>
       )}
       <div className="flex items-center">
-        {/* Emoji Picker */}
-        <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-        
-        {/* Attachment Uploader */}
-        <AttachmentUploader 
-          onFileSelect={handleFileSelect}
-          isUploading={isUploading}
-          uploadProgress={uploadProgress}
-        />
-        
-        <div className="flex-1 mx-2">
-          <Input
-            ref={inputRef}
-            type="text"
-            placeholder="Type a message"
-            className="w-full py-2 px-3 rounded-full bg-gray-100 dark:bg-gray-800"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-          />
+        <div className="flex-1 flex items-center space-x-1 sm:space-x-2 mr-1 sm:mr-2">
+          {/* Emoji Picker - Aligned to the left */}
+          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+          
+          {/* Input field - Takes remaining space */}
+          <div className="flex-1">
+            <Input
+              ref={inputRef}
+              type="text"
+              placeholder="Type a message"
+              className="w-full py-2 px-3 rounded-full bg-gray-100 dark:bg-gray-800 text-sm sm:text-base"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
         </div>
         
-        <Button
-          variant="default"
-          size="icon"
-          className="rounded-full bg-primary hover:bg-primary-dark"
-          onClick={handleSendMessage}
-          disabled={textMutation.isPending || !message.trim()}
-        >
-          {textMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-        </Button>
+        <div className="flex items-center space-x-1 sm:space-x-2">
+          {/* Attachment Uploader - Placed near send button */}
+          <AttachmentUploader 
+            onFileSelect={handleFileSelect}
+            isUploading={isUploading}
+            uploadProgress={uploadProgress}
+          />
+          
+          {/* Send button */}
+          <Button
+            variant="default"
+            size="icon"
+            className="rounded-full bg-primary hover:bg-primary-dark h-9 w-9 sm:h-10 sm:w-10"
+            onClick={handleSendMessage}
+            disabled={textMutation.isPending || !message.trim()}
+          >
+            {textMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
