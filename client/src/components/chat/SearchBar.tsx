@@ -114,15 +114,15 @@ export function SearchBar() {
 
   return (
     <div className="relative w-full" onKeyDown={handleKeyDown}>
-      <div className="flex items-center w-full border rounded-md focus-within:ring-1 focus-within:ring-primary">
+      <div className="flex items-center w-full border rounded-md focus-within:ring-1 focus-within:ring-primary bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center pl-3 pointer-events-none">
-          <Search className="h-4 w-4 text-muted-foreground" />
+          <Search className="h-4 w-4 text-gray-500 dark:text-gray-400" />
         </div>
         <Input
           ref={inputRef}
           type="text"
           placeholder="Search messages..."
-          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
           value={query}
           onChange={(e) => {
             const value = e.target.value;
@@ -141,7 +141,7 @@ export function SearchBar() {
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-8 w-8 mr-1"
+            className="h-8 w-8 mr-1 opacity-70 hover:opacity-100"
             onClick={() => {
               clearSearch();
               setIsOpen(false);

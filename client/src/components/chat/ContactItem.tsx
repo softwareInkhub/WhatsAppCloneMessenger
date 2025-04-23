@@ -71,7 +71,7 @@ export default function ContactItem({ contact, onClick }: ContactItemProps) {
   
   return (
     <div 
-      className="p-3 border-b border-gray-100 dark:border-gray-800 flex items-center hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+      className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
       onClick={onClick}
     >
       <div className="relative">
@@ -87,18 +87,18 @@ export default function ContactItem({ contact, onClick }: ContactItemProps) {
       <div className="ml-3 flex-1 flex flex-col min-w-0">
         <div className="flex justify-between items-baseline">
           <span className="font-medium truncate">{contact.username}</span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
             {latestMessage && latestMessage.createdAt ? formatTime(safeDate(latestMessage.createdAt)) : ""}
           </span>
         </div>
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mt-0.5">
           <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
             {getMessagePreview()}
           </span>
           
           {/* Unread badge - would be based on unread count in a real app */}
           {false && (
-            <Badge className="h-5 w-5 rounded-full bg-primary text-white text-xs flex items-center justify-center">
+            <Badge className="h-5 w-5 rounded-full bg-primary text-white text-xs flex items-center justify-center ml-2">
               2
             </Badge>
           )}

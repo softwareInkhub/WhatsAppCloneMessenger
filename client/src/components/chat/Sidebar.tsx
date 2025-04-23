@@ -111,21 +111,27 @@ export default function Sidebar({
   return (
     <aside className="w-full md:w-96 md:flex-shrink-0 border-r border-gray-200 dark:border-gray-800 flex flex-col h-full">
       {/* Header with user info and actions */}
-      <header className="bg-white dark:bg-dark-surface p-4 flex justify-between items-center border-b border-gray-200 dark:border-gray-800">
+      <header className="bg-white dark:bg-dark-surface px-4 py-3 flex justify-between items-center border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center">
           <Avatar className="h-10 w-10">
             <AvatarImage src={currentUser?.profilePicture || ""} alt={currentUser?.username || ""} />
             <AvatarFallback>{currentUser?.username ? getInitials(currentUser.username) : "UN"}</AvatarFallback>
           </Avatar>
-          <span className="ml-3 font-medium">{currentUser?.username || "User"}</span>
+          <div className="ml-3">
+            <div className="font-medium">{currentUser?.username || "User"}</div>
+            {currentUser?.status && (
+              <div className="text-xs text-gray-500 dark:text-gray-400">{currentUser.status}</div>
+            )}
+          </div>
         </div>
         
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2">
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={onAddContact}
             title="Add new contact"
+            className="h-9 w-9"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -138,6 +144,7 @@ export default function Sidebar({
             size="icon" 
             onClick={onOpenSettings}
             title="Settings"
+            className="h-9 w-9"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="1"></circle>
@@ -149,7 +156,7 @@ export default function Sidebar({
       </header>
       
       {/* Search Box */}
-      <div className="p-2 bg-white dark:bg-dark-surface">
+      <div className="px-4 py-2 bg-white dark:bg-dark-surface border-b border-gray-100 dark:border-gray-800">
         <SearchBar />
       </div>
       
@@ -178,11 +185,13 @@ export default function Sidebar({
         
         {/* Mobile welcome message (only show if there are contacts but nothing is displayed in main area) */}
         {isMobile && contacts.length > 0 && (
-          <div className="mt-8 mx-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 text-center">
-            <h3 className="font-medium mb-2">Select a contact to start chatting</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Tap on any contact to open your conversation
-            </p>
+          <div className="p-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+            <div className="text-center mb-2">
+              <h3 className="font-medium text-base">Select a contact to start chatting</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Tap on any contact to open your conversation
+              </p>
+            </div>
           </div>
         )}
         
