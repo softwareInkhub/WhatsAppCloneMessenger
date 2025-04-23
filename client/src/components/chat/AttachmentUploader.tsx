@@ -302,16 +302,16 @@ export function AttachmentUploader({ onFileSelect, isUploading = false, uploadPr
               )}
             </Button>
           </DrawerTrigger>
-          <DrawerContent className="h-[85vh] px-4">
-            <DrawerHeader className="p-4 pb-2">
+          <DrawerContent className="max-h-[80vh] px-4">
+            <DrawerHeader className="p-4 pb-0">
               <DrawerTitle>Attach File</DrawerTitle>
             </DrawerHeader>
             
-            <div className="flex-1 overflow-auto pb-4 px-1">
+            <div className="overflow-auto px-1 py-4">
               {!previewFile ? uploadContent : previewContent}
             </div>
             
-            <DrawerFooter className="pt-2 pb-8">
+            <DrawerFooter className="py-2">
               {footerButtons}
             </DrawerFooter>
           </DrawerContent>

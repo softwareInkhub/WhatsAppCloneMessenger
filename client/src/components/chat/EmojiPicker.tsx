@@ -82,14 +82,12 @@ export function EmojiPicker({ onEmojiSelect }: EmojiPickerProps) {
             <Smile className="h-5 w-5" />
           </Button>
         </DrawerTrigger>
-        <DrawerContent className="h-[70vh] px-0">
-          <DrawerHeader className="px-4 pb-0">
+        <DrawerContent className="max-h-[65vh] px-0">
+          <DrawerHeader className="px-4 py-2">
             <DrawerTitle>Select Emoji</DrawerTitle>
           </DrawerHeader>
-          <div className="p-0 overflow-hidden">
-            <div className="h-full">
-              {emojiPickerElement}
-            </div>
+          <div className="overflow-hidden">
+            {emojiPickerElement}
           </div>
         </DrawerContent>
       </Drawer>
