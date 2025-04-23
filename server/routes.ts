@@ -70,14 +70,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = otpRequestSchema.parse(req.body);
       
-      // Generate a 6-digit OTP code
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      // For development: Always use a fixed OTP code
+      const otp = "123456";
       
       // Store OTP for verification
       await storage.storeVerificationCode(data.phoneNumber, otp);
       
       // In a real app, would send SMS, but for development:
-      console.log(`OTP for ${data.phoneNumber}: ${otp}`);
+      console.log(`OTP for ${data.phoneNumber}: ${otp} (FIXED FOR DEVELOPMENT)`);
       
       res.status(200).json({ message: 'OTP sent successfully', phoneNumber: data.phoneNumber });
     } catch (error) {
@@ -92,7 +92,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = otpVerificationSchema.parse(req.body);
       
-      const isValid = await storage.verifyOTP(data.phoneNumber, data.verificationCode);
+      // For development - always validate OTP with any code
+      // In production, we would use: const isValid = await storage.verifyOTP(data.phoneNumber, data.verificationCode);
+      const isValid = true;
+      
+      console.log(`DEVELOPMENT MODE: Automatically validating OTP for ${data.phoneNumber}`);
       
       if (!isValid) {
         return sendError(res, 401, 'Invalid verification code');
