@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import MessageItem from "./MessageItem";
 import MessageInput from "./MessageInput";
 import { format } from "date-fns";
+import { safeDate } from "@/lib/utils";
 
 interface ChatAreaProps {
   onBackToContacts: () => void;
@@ -20,9 +21,10 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
   
-  // Group messages by date
+  // Group messages by date with safeDate to prevent invalid date errors
   const groupedMessages = messages.reduce((groups, message) => {
-    const date = new Date(message.createdAt).toDateString();
+    // Use safeDate utility to handle potential null or invalid dates
+    const date = safeDate(message.createdAt).toDateString();
     if (!groups[date]) {
       groups[date] = [];
     }
@@ -32,12 +34,14 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
   
   // Get initials for avatar
   const getInitials = (name: string) => {
+    if (!name) return "?";
     return name.slice(0, 2).toUpperCase();
   };
   
   // Format date for display
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    // Use safeDate utility to handle potential issues with date string
+    const date = safeDate(dateString);
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -95,7 +99,7 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
               <AvatarFallback>{getInitials(activeContact.username)}</AvatarFallback>
             </Avatar>
             <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ${
-              new Date(activeContact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5 
+              safeDate(activeContact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5 
                 ? "bg-green-500" 
                 : "bg-gray-400"
             } border-2 border-white dark:border-gray-900`}></span>
@@ -104,9 +108,9 @@ export default function ChatArea({ onBackToContacts, isMobile }: ChatAreaProps) 
           <div className="ml-3">
             <div className="font-medium">{activeContact.username}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              {new Date(activeContact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5 
+              {safeDate(activeContact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5 
                 ? "Online" 
-                : `Last seen ${format(new Date(activeContact.lastSeen), "h:mm a")}`
+                : `Last seen ${format(safeDate(activeContact.lastSeen), "h:mm a")}`
               }
             </div>
           </div>
