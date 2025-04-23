@@ -123,13 +123,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             break;
             
           case 'TYPING':
-            // Extract typing data with fallbacks
-            const isTyping = payload.isTyping !== undefined ? payload.isTyping : false;
-            const senderId = payload.senderId || payload.sender_id || '';
+            // Extract typing data with fallbacks for ALL possible field names
+            // Support both full field names AND compressed field names
+            // it = isTyping, s = senderId
+            const isTyping = payload.isTyping !== undefined ? payload.isTyping : 
+                            (payload.it !== undefined ? payload.it : false);
+                            
+            const senderId = payload.senderId || payload.sender_id || payload.s || '';
             
             // Only process if we have a valid sender ID
             if (senderId) {
               handleTypingStatus(senderId, isTyping);
+            } else if (payload.s && typeof payload.s === 'string') {
+              // Try once more with the compressed format directly
+              handleTypingStatus(payload.s, payload.it);
             } else {
               console.warn("Typing event missing sender ID:", payload);
             }
@@ -200,7 +207,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [activeContact]);
 
-  // Handle incoming messages with robust error handling
+  // Handle incoming messages with robust error handling for all message formats
   const handleNewMessage = (message: any) => {
     try {
       // Validate that we received a proper message object to prevent crashes
@@ -209,25 +216,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return;
       }
       
-      // Check for required fields to ensure it's a valid message
-      if (!message.id || (!message.senderId && !message.sender_id)) {
-        console.error("Message missing required fields:", message);
+      // Support for BOTH full field names AND compressed field names
+      // s = senderId, r = receiverId, c = content, t = type, st = status, ts = timestamp
+      const id = message.id;
+      const senderId = message.senderId || message.sender_id || message.s;
+      const receiverId = message.receiverId || message.receiver_id || message.r;
+      const content = message.content || message.c || '';
+      const type = message.type || message.t || 'text';
+      const status = message.status || message.st || 'sent';
+      const timestamp = message.timestamp || message.ts || message.createdAt || message.created_at || new Date().toISOString();
+      const createdAt = message.createdAt || message.created_at || timestamp;
+      const updatedAt = message.updatedAt || message.updated_at || timestamp;
+      
+      // Check for minimum required fields to ensure it's a valid message
+      if (!id || !senderId) {
+        console.error("Message missing minimum required fields:", message);
         return;
       }
       
-      // Normalize data format to handle both camelCase and snake_case
+      // Normalize data format to handle all possible message formats
+      // Only include properties that exist in the Message type
       const normalizedMessage: Message = {
-        ...message,
-        // Ensure sender ID is consistent
-        senderId: message.senderId || message.sender_id,
-        // Ensure receiver ID is consistent
-        receiverId: message.receiverId || message.receiver_id,
-        // Ensure content exists
-        content: message.content || '',
-        // Ensure createdAt exists as valid date string
-        createdAt: message.createdAt || message.created_at || new Date().toISOString(),
-        // Ensure updatedAt exists as valid date string
-        updatedAt: message.updatedAt || message.updated_at || new Date().toISOString()
+        id,
+        senderId,
+        receiverId: receiverId || currentUser?.id || '',
+        content,
+        type: type as any, // Type assertion to satisfy TypeScript
+        status: status as any, // Type assertion to satisfy TypeScript
+        createdAt,
+        updatedAt
       };
       
       // Add message to state
