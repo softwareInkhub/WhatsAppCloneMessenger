@@ -101,6 +101,11 @@ export default function LoginPage() {
         'recaptcha-container'
       );
       
+      // Reset OTP form before switching to it
+      otpForm.reset({
+        otp: ''
+      });
+      
       setConfirmationResult(result);
       setVerificationSent(true);
       setPageState('otp');
@@ -142,6 +147,11 @@ export default function LoginPage() {
     }
     
     try {
+      // Reset OTP form
+      otpForm.reset({
+        otp: ''
+      });
+      
       const result = await sendVerificationCode(
         phoneNumber,
         'recaptcha-container'
@@ -239,9 +249,11 @@ export default function LoginPage() {
                             <KeyRound className="mr-2 h-5 w-5 text-gray-400 self-center" />
                             <Input 
                               placeholder="Enter the code sent to your phone" 
-                              {...field} 
+                              value={field.value} 
+                              onChange={field.onChange}
                               className="flex-1"
                               maxLength={8}
+                              autoComplete="one-time-code"
                             />
                           </div>
                         </FormControl>
