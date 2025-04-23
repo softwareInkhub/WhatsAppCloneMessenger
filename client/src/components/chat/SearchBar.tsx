@@ -50,12 +50,12 @@ export function SearchBar() {
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => 
-        prev < results.length - 1 ? prev + 1 : prev
+        prev < (results?.length || 0) - 1 ? prev + 1 : prev
       );
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex(prev => prev > 0 ? prev - 1 : prev);
-    } else if (e.key === 'Enter' && selectedIndex >= 0 && selectedIndex < results.length) {
+    } else if (e.key === 'Enter' && results && selectedIndex >= 0 && selectedIndex < results.length) {
       handleResultClick(results[selectedIndex]);
     }
   };
@@ -154,7 +154,7 @@ export function SearchBar() {
             </div>
           </div>
 
-          {isLoading && results.length === 0 && (
+          {isLoading && (!results || results.length === 0) && (
             <div className="p-4 space-y-3">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="flex items-start gap-3">
@@ -168,14 +168,14 @@ export function SearchBar() {
             </div>
           )}
 
-          {!isLoading && results.length === 0 && query && (
+          {!isLoading && (!results || results.length === 0) && query && (
             <div className="p-8 text-center">
               <MessageSquare className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
               <p className="text-sm text-muted-foreground">No messages found</p>
             </div>
           )}
 
-          {results.length > 0 && (
+          {results && results.length > 0 && (
             <div className="divide-y">
               {results.map((result, index) => (
                 <div 
@@ -206,7 +206,7 @@ export function SearchBar() {
           )}
 
           {/* Keyboard navigation hint */}
-          {results.length > 0 && (
+          {results && results.length > 0 && (
             <div className="p-2 border-t text-xs text-muted-foreground flex justify-center items-center gap-3">
               <div className="flex items-center gap-1">
                 <ArrowUp className="h-3 w-3" />

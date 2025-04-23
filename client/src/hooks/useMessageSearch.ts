@@ -117,9 +117,13 @@ export function useMessageSearch() {
       });
       
       // Cache the server results for future searches
-      for (const result of serverData.results) {
-        await messageCache.addMessageToCache(currentUser.id, result.message);
-        await messageCache.cacheContacts([result.contact]);
+      if (serverData && serverData.results && Array.isArray(serverData.results)) {
+        for (const result of serverData.results) {
+          if (result && result.message && result.contact) {
+            await messageCache.addMessageToCache(currentUser.id, result.message);
+            await messageCache.cacheContacts([result.contact]);
+          }
+        }
       }
     } catch (error) {
       console.error('Message search error:', error);
