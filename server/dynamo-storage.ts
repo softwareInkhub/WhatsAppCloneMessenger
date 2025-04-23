@@ -133,10 +133,17 @@ export class DynamoDBStorage implements IStorage {
       
       // Convert back to app schema for consistency
       const user: User = {
-        ...dynamoUser,
+        id: dynamoUser.id,
+        username: dynamoUser.username,
+        email: dynamoUser.email,
+        phoneNumber: dynamoUser.phoneNumber,
+        profilePicture: dynamoUser.profilePicture,
+        status: dynamoUser.status,
+        verificationCode: dynamoUser.verificationCode || null,
+        verified: dynamoUser.verified,
         lastSeen: now,
         createdAt: now,
-        updatedAt: now,
+        updatedAt: now
       };
       
       return user;

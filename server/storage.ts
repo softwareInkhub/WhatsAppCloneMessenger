@@ -254,7 +254,12 @@ export class MemStorage implements IStorage {
       (message) => 
         (message.senderId === user1Id && message.receiverId === user2Id) ||
         (message.senderId === user2Id && message.receiverId === user1Id)
-    ).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    ).sort((a, b) => {
+      // Handle dates safely with explicit null checks to satisfy TypeScript
+      const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(0);
+      const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(0);
+      return dateA.getTime() - dateB.getTime();
+    });
   }
 
   async updateMessageStatus(id: string, status: 'sent' | 'delivered' | 'read'): Promise<Message | undefined> {

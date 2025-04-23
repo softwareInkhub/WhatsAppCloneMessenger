@@ -64,7 +64,7 @@ export default function ContactItem({ contact, onClick }: ContactItemProps) {
   };
   
   // Check if user is online (last seen within 5 minutes)
-  const isOnline = new Date(contact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5;
+  const isOnline = contact.lastSeen && new Date(contact.lastSeen).getTime() > Date.now() - 1000 * 60 * 5;
   
   return (
     <div 
@@ -85,7 +85,7 @@ export default function ContactItem({ contact, onClick }: ContactItemProps) {
         <div className="flex justify-between items-baseline">
           <span className="font-medium truncate">{contact.username}</span>
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {latestMessage ? formatTime(new Date(latestMessage.createdAt)) : ""}
+            {latestMessage && latestMessage.createdAt ? formatTime(new Date(latestMessage.createdAt)) : ""}
           </span>
         </div>
         <div className="flex justify-between items-center">
