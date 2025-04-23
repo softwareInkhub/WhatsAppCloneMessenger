@@ -12,9 +12,9 @@ export default function OTPVerification() {
   React.useEffect(() => {
     if (!phoneNumber) {
       console.log("Phone number not set, redirecting to /");
-      window.location.href = "/";
+      setLocation("/");
     }
-  }, [phoneNumber]);
+  }, [phoneNumber, setLocation]);
   
   return (
     <MainLayout>

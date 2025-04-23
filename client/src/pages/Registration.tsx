@@ -12,9 +12,9 @@ export default function Registration() {
   React.useEffect(() => {
     if (!phoneNumber || !isNewUser) {
       console.log("Registration requirements not met, redirecting to /");
-      window.location.href = "/";
+      setLocation("/");
     }
-  }, [phoneNumber, isNewUser]);
+  }, [phoneNumber, isNewUser, setLocation]);
   
   return (
     <MainLayout>
