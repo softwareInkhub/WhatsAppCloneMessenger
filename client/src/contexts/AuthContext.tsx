@@ -94,12 +94,53 @@ export function AuthProvider({ children }: AuthProviderProps) {
         ? phoneNumber 
         : `+${phoneNumber}`;
       
-      // Create a reCAPTCHA verifier
-      const recaptchaVerifier = createRecaptchaVerifier(recaptchaContainerId);
-      
-      // Send OTP to the phone number
-      const confirmationResult = await sendOTP(formattedPhoneNumber, recaptchaVerifier);
-      return confirmationResult;
+      try {
+        // Try Firebase authentication first
+        const recaptchaVerifier = createRecaptchaVerifier(recaptchaContainerId);
+        const confirmationResult = await sendOTP(formattedPhoneNumber, recaptchaVerifier);
+        return confirmationResult;
+      } catch (firebaseError: any) {
+        console.error('Firebase auth error:', firebaseError);
+        
+        // If we hit a billing error or other Firebase issue, fall back to our backend OTP
+        if (firebaseError.code === 'auth/billing-not-enabled' || 
+            firebaseError.code === 'auth/quota-exceeded' ||
+            firebaseError.code === 'auth/captcha-check-failed') {
+          
+          console.log('Falling back to server OTP verification');
+          
+          // Call our backend OTP API
+          const response = await apiRequest('POST', '/auth/request-otp', {
+            phoneNumber: formattedPhoneNumber
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to send verification code');
+          }
+          
+          const data = await response.json();
+          
+          // Return a mock confirmation object that will be handled in confirmVerificationCode
+          return {
+            confirm: async (code: string) => {
+              // This will be handled by our backend in confirmVerificationCode
+              return { 
+                user: { 
+                  phoneNumber: formattedPhoneNumber 
+                }
+              };
+            },
+            // Flag to indicate we're using the fallback method
+            _isFallback: true,
+            _phoneNumber: formattedPhoneNumber,
+            // In development, include the code for testing
+            _devCode: data.code 
+          };
+        }
+        
+        // Re-throw other Firebase errors
+        throw firebaseError;
+      }
     } catch (error: any) {
       const errorMessage = error.message || 'Failed to send verification code';
       setError(errorMessage);
@@ -114,28 +155,74 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setError(null);
     
     try {
-      // Verify the OTP
-      const firebaseUser = await verifyOTP(confirmationResult, verificationCode);
-      setFirebaseUser(firebaseUser);
+      let phoneNumber;
+      let isVerified = false;
       
-      // Check if the user exists in the backend
-      const response = await apiRequest('POST', '/api/auth/verify-otp', {
-        phoneNumber: firebaseUser.phoneNumber,
-        code: "firebase-verified" // Special code to indicate Firebase verified the OTP
-      });
-      
-      if (response.ok) {
-        const userData = await response.json();
-        setCurrentUser(userData);
-        localStorage.setItem('currentUser', JSON.stringify(userData));
-        return userData;
-      } else if (response.status === 404) {
-        // User not found, return null to indicate registration is needed
-        return null;
+      // Check if we're using the fallback method
+      if (confirmationResult._isFallback) {
+        console.log('Using fallback OTP verification method');
+        phoneNumber = confirmationResult._phoneNumber;
+        
+        // Verify the OTP with our backend
+        const response = await apiRequest('POST', '/auth/verify-otp', {
+          phoneNumber,
+          verificationCode
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Invalid code' }));
+          throw new Error(errorData.error || 'Invalid verification code');
+        }
+        
+        const data = await response.json();
+        
+        // If the response contains user data, the user exists
+        if (data.id) {
+          console.log('User found in database:', data);
+          setCurrentUser(data);
+          localStorage.setItem('currentUser', JSON.stringify(data));
+          isVerified = true;
+          return data;
+        } else if (data.isNewUser) {
+          // User needs to be registered
+          console.log('New user needs registration', data);
+          isVerified = true;
+          // Create a pseudo-firebase user to track verification state
+          setFirebaseUser({ 
+            phoneNumber, 
+            isAnonymous: false, 
+            uid: 'local-auth-' + Date.now() 
+          } as any);
+          return null;
+        } else {
+          throw new Error('Failed to verify OTP code');
+        }
       } else {
-        throw new Error('Failed to verify user with backend');
+        // Use Firebase authentication
+        const firebaseUser = await verifyOTP(confirmationResult, verificationCode);
+        phoneNumber = firebaseUser.phoneNumber;
+        setFirebaseUser(firebaseUser);
+        
+        // Check if the user exists in the backend
+        const response = await apiRequest('POST', '/auth/verify-otp', {
+          phoneNumber,
+          code: "firebase-verified" // Special code to indicate Firebase verified the OTP
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          setCurrentUser(userData);
+          localStorage.setItem('currentUser', JSON.stringify(userData));
+          return userData;
+        } else if (response.status === 404) {
+          // User not found, return null to indicate registration is needed
+          return null;
+        } else {
+          throw new Error('Failed to verify user with backend');
+        }
       }
     } catch (error: any) {
+      console.error('Verification error:', error);
       const errorMessage = error.message || 'Failed to verify code';
       setError(errorMessage);
       throw error;
@@ -149,26 +236,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setError(null);
     
     try {
-      if (!firebaseUser) {
+      if (!firebaseUser && !userData.phoneNumber) {
         throw new Error('Phone verification required before registration');
       }
       
-      const response = await apiRequest('POST', '/api/auth/register', {
+      // Determine verification source - either Firebase or our fallback method
+      const isFirebaseVerified = firebaseUser && !firebaseUser.uid.startsWith('local-auth-');
+      const phoneNumber = firebaseUser?.phoneNumber || userData.phoneNumber;
+      
+      console.log('Registering user with phone:', phoneNumber, 'Firebase verified:', isFirebaseVerified);
+      
+      const response = await apiRequest('POST', '/auth/register', {
         ...userData,
-        phoneNumber: firebaseUser.phoneNumber || userData.phoneNumber,
-        verified: true // Phone already verified by Firebase
+        phoneNumber,
+        verified: isFirebaseVerified // Only mark as fully verified if done through Firebase
       });
       
-      if (response.ok) {
-        const newUser = await response.json();
-        setCurrentUser(newUser);
-        localStorage.setItem('currentUser', JSON.stringify(newUser));
-        return newUser;
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Registration failed' }));
-        throw new Error(errorData.message || 'Registration failed');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Registration failed' }));
+        throw new Error(errorData.error || 'Registration failed');
       }
+      
+      const newUser = await response.json();
+      setCurrentUser(newUser);
+      localStorage.setItem('currentUser', JSON.stringify(newUser));
+      return newUser;
     } catch (error: any) {
+      console.error('Registration error:', error);
       const errorMessage = error.message || 'Registration failed';
       setError(errorMessage);
       throw error;
@@ -186,7 +280,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await logoutUser();
       
       // Call backend logout API
-      await apiRequest('POST', '/api/auth/logout');
+      await apiRequest('POST', '/auth/logout');
       
       // Clear user state
       setCurrentUser(null);
