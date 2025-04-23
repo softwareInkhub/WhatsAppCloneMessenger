@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { ensureTablesExist } from "./create-tables";
 
 const app = express();
 app.use(express.json());
@@ -37,6 +38,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Make sure DynamoDB tables exist
+  try {
+    await ensureTablesExist();
+  } catch (error) {
+    console.error('Error creating DynamoDB tables:', error);
+    log('Failed to initialize DynamoDB tables. Some functionality may not work correctly.');
+  }
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -17,6 +17,17 @@ import {
   InsertContactRequest, 
   UpdateContactRequest 
 } from '@shared/schema';
+
+import {
+  DynamoUser,
+  DynamoContact,
+  DynamoMessage,
+  DynamoContactRequest,
+  DynamoInsertUser,
+  DynamoInsertMessage,
+  DynamoInsertContactRequest,
+  DynamoUpdateContactRequest
+} from '@shared/dynamo-schema';
 import { IStorage } from './storage';
 import { log } from './vite';
 
@@ -95,27 +106,39 @@ export class DynamoDBStorage implements IStorage {
   }
 
   async createUser(userData: InsertUser): Promise<User> {
-    const now = new Date().toISOString();
-    const user: User = {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    
+    // Create DynamoDB compatible user object
+    const dynamoUser: DynamoUser = {
       id: uuidv4(),
       username: userData.username,
       email: userData.email,
       phoneNumber: userData.phoneNumber,
       profilePicture: userData.profilePicture || null,
       status: userData.status || "Hey, I'm using WhatsPe!",
-      lastSeen: now,
-      createdAt: now,
-      updatedAt: now,
+      lastSeen: nowIso,
+      createdAt: nowIso,
+      updatedAt: nowIso,
       verified: true
     };
     
     const command = new PutCommand({
       TableName: TableNames.USERS,
-      Item: user
+      Item: dynamoUser
     });
     
     try {
       await dynamoDB.docClient.send(command);
+      
+      // Convert back to app schema for consistency
+      const user: User = {
+        ...dynamoUser,
+        lastSeen: now,
+        createdAt: now,
+        updatedAt: now,
+      };
+      
       return user;
     } catch (error) {
       console.error('Error creating user:', error);
@@ -226,23 +249,34 @@ export class DynamoDBStorage implements IStorage {
   
   // Contact requests
   async createContactRequest(request: InsertContactRequest & { senderId: string }): Promise<ContactRequest> {
-    const now = new Date().toISOString();
-    const contactRequest: ContactRequest = {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    
+    // Create a DynamoDB compatible contact request
+    const dynamoContactRequest: DynamoContactRequest = {
       id: uuidv4(),
       senderId: request.senderId,
       receiverId: request.receiverId,
       status: 'pending',
-      createdAt: now,
-      updatedAt: now
+      createdAt: nowIso,
+      updatedAt: nowIso
     };
     
     const command = new PutCommand({
       TableName: TableNames.CONTACT_REQUESTS,
-      Item: contactRequest
+      Item: dynamoContactRequest
     });
     
     try {
       await dynamoDB.docClient.send(command);
+      
+      // Convert to app schema
+      const contactRequest: ContactRequest = {
+        ...dynamoContactRequest,
+        createdAt: now,
+        updatedAt: now
+      };
+      
       return contactRequest;
     } catch (error) {
       console.error('Error creating contact request:', error);
@@ -366,20 +400,31 @@ export class DynamoDBStorage implements IStorage {
   }
 
   async addContact(userId: string, contactId: string): Promise<Contact> {
-    const contact: Contact = {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    
+    // Create DynamoDB compatible contact object
+    const dynamoContact: DynamoContact = {
       id: uuidv4(),
       userId,
       contactId,
-      createdAt: new Date().toISOString()
+      createdAt: nowIso
     };
     
     const command = new PutCommand({
       TableName: TableNames.CONTACTS,
-      Item: contact
+      Item: dynamoContact
     });
     
     try {
       await dynamoDB.docClient.send(command);
+      
+      // Convert to app schema
+      const contact: Contact = {
+        ...dynamoContact,
+        createdAt: now
+      };
+      
       return contact;
     } catch (error) {
       console.error('Error adding contact:', error);
@@ -389,34 +434,45 @@ export class DynamoDBStorage implements IStorage {
   
   // Messages
   async createMessage(message: InsertMessage & { senderId: string }): Promise<Message> {
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
     
     // Create a conversation key that can be used to query messages between two users
     // Format is "smaller_id:larger_id" to ensure consistency
     const [smallerId, largerId] = [message.senderId, message.receiverId].sort();
     const conversationKey = `${smallerId}:${largerId}`;
     
-    const newMessage: Message = {
+    // Create DynamoDB compatible message object
+    const dynamoMessage: DynamoMessage = {
       id: uuidv4(),
       senderId: message.senderId,
       receiverId: message.receiverId,
       conversationKey,
       content: message.content,
-      type: message.type,
+      type: message.type || 'text', // Default to text if not specified
       status: 'sent',
-      timestamp: now,
-      createdAt: now,
-      updatedAt: now
+      timestamp: nowIso,
+      createdAt: nowIso,
+      updatedAt: nowIso
     };
     
     const command = new PutCommand({
       TableName: TableNames.MESSAGES,
-      Item: newMessage
+      Item: dynamoMessage
     });
     
     try {
       await dynamoDB.docClient.send(command);
-      return newMessage;
+      
+      // Convert back to app schema for consistency
+      const appMessage: Message = {
+        ...dynamoMessage,
+        timestamp: now,
+        createdAt: now,
+        updatedAt: now
+      };
+      
+      return appMessage;
     } catch (error) {
       console.error('Error creating message:', error);
       throw error;
