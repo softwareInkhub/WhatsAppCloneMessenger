@@ -9,11 +9,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { safeDate } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function SearchBar() {
   const { currentUser } = useAuth();
   const { setActiveContact, highlightMessage } = useChat();
   const { search, clearSearch, results, isLoading, totalResults, query } = useMessageSearch();
+  const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -63,6 +65,18 @@ export function SearchBar() {
   // Handle result click to navigate to the conversation and highlight the message
   const handleResultClick = (result: any) => {
     setActiveContact(result.contact);
+    
+    // Handle mobile view toggle
+    if (isMobile) {
+      // Hide sidebar and show main chat content on mobile
+      const sidebar = document.querySelector("aside");
+      const main = document.querySelector("main");
+      if (sidebar && main) {
+        sidebar.classList.add("hidden");
+        main.classList.remove("hidden");
+        main.classList.add("flex");
+      }
+    }
     
     // Set a short timeout to allow the conversation to load before highlighting
     setTimeout(() => {
