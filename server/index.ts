@@ -2,8 +2,13 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { ensureTablesExist } from "./create-tables";
+import cors from 'cors';
 
 const app = express();
+
+// Enable CORS for all routes
+app.use(cors());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -65,10 +70,10 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
+  // ALWAYS serve the app on port 5001
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = 5000;
+  const port = 5001;
   server.listen({
     port,
     host: "0.0.0.0",

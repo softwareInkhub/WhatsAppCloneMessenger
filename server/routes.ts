@@ -1,7 +1,7 @@
 import express, { type Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { storage } from "./storage";
+import { storage } from "./storage-init";
 import { sendOptimized, broadcastOptimized } from "./utils/websocket-optimization";
 import { 
   insertUserSchema, 

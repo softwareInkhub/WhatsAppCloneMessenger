@@ -278,19 +278,17 @@ export async function searchUsers(query: string, userId: string) {
 // Contact request functions
 export async function sendContactRequest(receiverId: string, userId: string) {
   try {
-    const response = await fetch('/api/contacts/request', {
+    const response = await fetch(`/api/contacts/request?userId=${encodeURIComponent(userId)}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ 
-        userId, 
-        receiverId 
-      }),
+      body: JSON.stringify({ receiverId }),
     });
     
     if (!response.ok) {
-      throw new Error(`Network error: ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Network error: ${response.statusText}`);
     }
     
     return await response.json();

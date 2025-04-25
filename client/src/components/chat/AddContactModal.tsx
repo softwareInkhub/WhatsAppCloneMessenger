@@ -29,13 +29,18 @@ export default function AddContactModal({ isOpen, onOpenChange }: AddContactModa
   
   // Send contact request mutation
   const mutation = useMutation({
-    mutationFn: (receiverId: string) => 
-      sendContactRequest(receiverId, currentUser!.id),
+    mutationFn: async (receiverId: string) => {
+      if (!currentUser?.id) {
+        throw new Error('You must be logged in to add contacts');
+      }
+      return sendContactRequest(receiverId, currentUser.id);
+    },
     onSuccess: () => {
       toast({
         title: "Contact Request Sent",
         description: "Your request has been sent successfully",
       });
+      onOpenChange(false);
     },
     onError: (error) => {
       toast({
@@ -47,7 +52,7 @@ export default function AddContactModal({ isOpen, onOpenChange }: AddContactModa
   });
   
   // Handle search
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (searchQuery.length < 3) {
       toast({
         title: "Search error",
@@ -58,7 +63,17 @@ export default function AddContactModal({ isOpen, onOpenChange }: AddContactModa
     }
     
     setIsSearching(true);
-    refetch();
+    try {
+      await refetch();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to search users",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
+    }
   };
   
   // Handle send contact request
