@@ -1,0 +1,652 @@
+openapi: 3.0.0
+info:
+  title: WhatsApp Clone Messenger API
+  version: 1.0.0
+  description: A scalable, cloud-native messaging platform with real-time communication capabilities
+
+servers:
+  - url: http://localhost:5000
+    description: Local development
+  - url: https://api.whatspe.com
+    description: Production server
+
+security:
+  - UserAuth: []
+
+paths:
+  /api/auth/request-otp:
+    post:
+      summary: Request OTP for phone verification
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phoneNumber:
+                  type: string
+                  example: "9890999999"
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "OTP sent successfully"
+                  phoneNumber:
+                    type: string
+                    example: "9890999999"
+
+  /api/auth/verify-otp:
+    post:
+      summary: Verify OTP
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phoneNumber:
+                  type: string
+                  example: "9890999999"
+                verificationCode:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: OTP verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+                  isNewUser:
+                    type: boolean
+
+  /api/auth/register:
+    post:
+      summary: Register new user
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                phoneNumber:
+                  type: string
+                status:
+                  type: string
+      responses:
+        '200':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /api/users/search:
+    get:
+      summary: Search users
+      tags:
+        - User Management
+      parameters:
+        - in: query
+          name: query
+          schema:
+            type: string
+          required: true
+          description: Username to search for
+      responses:
+        '200':
+          description: List of matching users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /api/user:
+    get:
+      summary: Get current user
+      tags:
+        - User Management
+      responses:
+        '200':
+          description: Current user details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /api/contacts:
+    get:
+      summary: Get user contacts
+      tags:
+        - Contact Management
+      parameters:
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID of the user whose contacts to retrieve
+      responses:
+        '200':
+          description: List of contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /api/contacts/request:
+    post:
+      summary: Send contact request
+      tags:
+        - Contact Management
+      parameters:
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                receiverId:
+                  type: string
+      responses:
+        '200':
+          description: Contact request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactRequest'
+
+  /api/contacts/accept/{requestId}:
+    post:
+      summary: Accept contact request
+      tags:
+        - Contact Management
+      parameters:
+        - in: path
+          name: requestId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Contact request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: '#/components/schemas/ContactRequest'
+                  contact:
+                    $ref: '#/components/schemas/User'
+
+  /api/contacts/reject/{requestId}:
+    post:
+      summary: Reject contact request
+      tags:
+        - Contact Management
+      parameters:
+        - in: path
+          name: requestId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Contact request rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactRequest'
+
+  /api/contacts/requests/pending:
+    get:
+      summary: Get pending contact requests
+      tags:
+        - Contact Management
+      parameters:
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of pending contact requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContactRequestWithSender'
+
+  /api/messages:
+    post:
+      summary: Send message
+      tags:
+        - Messaging
+      parameters:
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageInput'
+      responses:
+        '200':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+
+  /api/messages/{contactId}:
+    get:
+      summary: Get messages with contact
+      tags:
+        - Messaging
+      parameters:
+        - in: path
+          name: contactId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+
+  /api/messages/search:
+    get:
+      summary: Search messages
+      tags:
+        - Messaging
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: caseSensitive
+          schema:
+            type: boolean
+        - in: query
+          name: wholeWord
+          schema:
+            type: boolean
+        - in: query
+          name: dateRange
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MessageSearchResult'
+
+  /ws:
+    get:
+      summary: WebSocket connection endpoint
+      tags:
+        - Real-time Communication
+      parameters:
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '101':
+          description: Switching protocols to WebSocket
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/webhooks/messages:
+    post:
+      summary: External message integration webhook
+      tags:
+        - Integration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                senderId:
+                  type: string
+                receiverId:
+                  type: string
+                content:
+                  type: string
+                type:
+                  type: string
+      responses:
+        '200':
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          description: Internal server error
+
+components:
+  parameters:
+    UserIdParam:
+      in: query
+      name: userId
+      required: true
+      schema:
+        type: string
+      description: ID of the authenticated user
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Unauthorized access"
+
+    ValidationError:
+      description: Invalid input parameters
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: array
+                items:
+                  type: string
+
+  securitySchemes:
+    UserAuth:
+      type: apiKey
+      in: query
+      name: userId
+      description: User ID for authentication
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        phoneNumber:
+          type: string
+        profilePicture:
+          type: string
+          nullable: true
+        status:
+          type: string
+        lastSeen:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        verified:
+          type: boolean
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        senderId:
+          type: string
+        receiverId:
+          type: string
+        content:
+          type: string
+        type:
+          type: string
+          enum: [text, image, video, audio, document]
+        status:
+          type: string
+          enum: [sent, delivered, read]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    MessageInput:
+      type: object
+      properties:
+        receiverId:
+          type: string
+        content:
+          type: string
+        type:
+          type: string
+          enum: [text, image, video, audio, document]
+        status:
+          type: string
+          enum: [sent, delivered, read]
+
+    ContactRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        senderId:
+          type: string
+        receiverId:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, rejected]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ContactRequestWithSender:
+      allOf:
+        - $ref: '#/components/schemas/ContactRequest'
+        - type: object
+          properties:
+            sender:
+              $ref: '#/components/schemas/User'
+
+    MessageSearchResult:
+      type: object
+      properties:
+        message:
+          $ref: '#/components/schemas/Message'
+        contact:
+          $ref: '#/components/schemas/User'
+        highlight:
+          type: object
+          properties:
+            before:
+              type: string
+            match:
+              type: string
+            after:
+              type: string
+
+    WebSocketMessage:
+      type: object
+      properties:
+        t:
+          type: string
+          enum: [MSG, READ, REQ, REQ_ACC, TYPING, CONN, PING, PONG]
+          description: Message type in shortened format
+        d:
+          type: object
+          properties:
+            id:
+              type: string
+            s:
+              type: string
+              description: senderId
+            r:
+              type: string
+              description: receiverId
+            c:
+              type: string
+              description: content
+            t:
+              type: string
+              description: type
+            st:
+              type: string
+              description: status
+            ts:
+              type: string
+              format: date-time
+              description: timestamp
+
+    VerificationCode:
+      type: object
+      properties:
+        phoneNumber:
+          type: string
+        code:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+
+    Contact:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        contactId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    TypingStatus:
+      type: object
+      properties:
+        recipientId:
+          type: string
+        isTyping:
+          type: boolean
+
+tags:
+  - name: Authentication
+    description: User authentication and registration
+  - name: User Management
+    description: User profile and search operations
+  - name: Contact Management
+    description: Contact relationships and requests
+  - name: Messaging
+    description: Message operations and search
+  - name: Real-time Communication
+    description: WebSocket-based real-time features
+  - name: Integration
+    description: External integration endpoints

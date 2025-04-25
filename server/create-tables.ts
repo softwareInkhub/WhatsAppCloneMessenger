@@ -122,40 +122,14 @@ async function createMessagesTable() {
     AttributeDefinitions: [
       { AttributeName: "id", AttributeType: "S" },
       { AttributeName: "senderId", AttributeType: "S" },
-      { AttributeName: "receiverId", AttributeType: "S" },
-      { AttributeName: "conversationKey", AttributeType: "S" },
-      { AttributeName: "timestamp", AttributeType: "S" }
+      { AttributeName: "receiverId", AttributeType: "S" }
     ],
     GlobalSecondaryIndexes: [
       {
-        IndexName: "SenderIndex",
+        IndexName: "SenderReceiverIndex",
         KeySchema: [
           { AttributeName: "senderId", KeyType: "HASH" },
-          { AttributeName: "timestamp", KeyType: "RANGE" }
-        ],
-        Projection: { ProjectionType: "ALL" },
-        ProvisionedThroughput: {
-          ReadCapacityUnits: 5,
-          WriteCapacityUnits: 5
-        }
-      },
-      {
-        IndexName: "ReceiverIndex",
-        KeySchema: [
-          { AttributeName: "receiverId", KeyType: "HASH" },
-          { AttributeName: "timestamp", KeyType: "RANGE" }
-        ],
-        Projection: { ProjectionType: "ALL" },
-        ProvisionedThroughput: {
-          ReadCapacityUnits: 5,
-          WriteCapacityUnits: 5
-        }
-      },
-      {
-        IndexName: "ConversationIndex",
-        KeySchema: [
-          { AttributeName: "conversationKey", KeyType: "HASH" },
-          { AttributeName: "timestamp", KeyType: "RANGE" }
+          { AttributeName: "receiverId", KeyType: "RANGE" }
         ],
         Projection: { ProjectionType: "ALL" },
         ProvisionedThroughput: {
@@ -258,17 +232,6 @@ async function createContactsTable() {
         IndexName: "UserIdIndex",
         KeySchema: [
           { AttributeName: "userId", KeyType: "HASH" }
-        ],
-        Projection: { ProjectionType: "ALL" },
-        ProvisionedThroughput: {
-          ReadCapacityUnits: 5,
-          WriteCapacityUnits: 5
-        }
-      },
-      {
-        IndexName: "ContactIdIndex",
-        KeySchema: [
-          { AttributeName: "contactId", KeyType: "HASH" }
         ],
         Projection: { ProjectionType: "ALL" },
         ProvisionedThroughput: {

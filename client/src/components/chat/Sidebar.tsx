@@ -30,10 +30,22 @@ export default function Sidebar({
   const { contacts, pendingRequests, loading, refreshContacts, refreshPendingRequests, setContacts } = useChat();
   const { toast } = useToast();
   
-  // Filter contacts based on search query
-  const filteredContacts = contacts.filter(contact => 
+  // Filter contacts based on search query and ensure uniqueness
+  const filteredContacts = React.useMemo(() => {
+    const uniqueContacts = Array.from(
+      new Map(contacts.map(contact => [contact.id, contact])).values()
+    );
+    return uniqueContacts
+      .filter(contact => 
     contact.username.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      )
+      .sort((a, b) => a.username.localeCompare(b.username));
+  }, [contacts, searchQuery]);
+  
+  // Refresh contacts list when component mounts
+  useEffect(() => {
+    refreshContacts();
+  }, []);
   
   // Accept contact request mutation
   const acceptMutation = useMutation({

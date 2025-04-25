@@ -380,7 +380,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoading(prev => ({ ...prev, contacts: true }));
     try {
       const contactsList = await getContacts(currentUser.id);
-      setContacts(contactsList);
+      // Deduplicate contacts based on ID
+      const uniqueContacts = Array.from(
+        new Map(contactsList.map(contact => [contact.id, contact])).values()
+      ).sort((a, b) => a.username.localeCompare(b.username));
+      setContacts(uniqueContacts);
     } catch (error) {
       console.error("Failed to load contacts:", error);
       toast({

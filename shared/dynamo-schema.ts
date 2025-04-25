@@ -25,11 +25,9 @@ export interface DynamoMessage {
   id: string;
   senderId: string;
   receiverId: string;
-  conversationKey: string; // Combined id for efficient querying: "smallerId:largerId"
   content: string;
   type: MessageType;
   status: MessageStatus;
-  timestamp: string; // ISO date string
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
 }
@@ -91,20 +89,16 @@ export const messageSchema = z.object({
   id: z.string(),
   senderId: z.string(),
   receiverId: z.string(),
-  conversationKey: z.string(),
   content: z.string(),
   type: z.enum(['text', 'image', 'video', 'audio', 'document']),
   status: z.enum(['sent', 'delivered', 'read']),
-  timestamp: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()
 });
 
 export const insertMessageSchema = messageSchema.omit({ 
   id: true, 
-  conversationKey: true,
   status: true, 
-  timestamp: true,
   createdAt: true, 
   updatedAt: true 
 });

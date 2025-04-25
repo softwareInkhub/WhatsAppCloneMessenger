@@ -334,7 +334,15 @@ export class DynamoDBStorage implements IStorage {
     
     try {
       const response = await dynamoDB.docClient.send(command);
-      return response.Item as ContactRequest;
+      if (!response.Item) return undefined;
+      
+      // Convert from DynamoDB format to app format
+      const dynamoRequest = response.Item as DynamoContactRequest;
+      return {
+        ...dynamoRequest,
+        createdAt: new Date(dynamoRequest.createdAt),
+        updatedAt: new Date(dynamoRequest.updatedAt)
+      };
     } catch (error) {
       console.error('Error getting contact request:', error);
       return undefined;
@@ -378,9 +386,24 @@ export class DynamoDBStorage implements IStorage {
         dynamoDB.docClient.send(senderCommand)
       ]);
       
-      // Combine and return requests
-      const receiverRequests = receiverResponse.Items as ContactRequest[] || [];
-      const senderRequests = senderResponse.Items as ContactRequest[] || [];
+      // Combine and convert requests
+      const receiverRequests = (receiverResponse.Items || []).map(item => {
+        const dynamoRequest = item as DynamoContactRequest;
+        return {
+          ...dynamoRequest,
+          createdAt: new Date(dynamoRequest.createdAt),
+          updatedAt: new Date(dynamoRequest.updatedAt)
+        };
+      });
+      
+      const senderRequests = (senderResponse.Items || []).map(item => {
+        const dynamoRequest = item as DynamoContactRequest;
+        return {
+          ...dynamoRequest,
+          createdAt: new Date(dynamoRequest.createdAt),
+          updatedAt: new Date(dynamoRequest.updatedAt)
+        };
+      });
       
       return [...receiverRequests, ...senderRequests];
     } catch (error) {
@@ -390,23 +413,71 @@ export class DynamoDBStorage implements IStorage {
   }
 
   async updateContactRequestStatus(id: string, { status }: UpdateContactRequest): Promise<ContactRequest | undefined> {
+    const request = await this.getContactRequest(id);
+    if (!request) return undefined;
+    
+    const now = new Date();
+    const nowIso = now.toISOString();
+    
     const command = new UpdateCommand({
       TableName: TableNames.CONTACT_REQUESTS,
       Key: { id },
       UpdateExpression: 'SET #status = :status, updatedAt = :updatedAt',
-      ExpressionAttributeValues: {
-        ':status': status,
-        ':updatedAt': new Date().toISOString()
-      },
       ExpressionAttributeNames: {
         '#status': 'status'
+      },
+      ExpressionAttributeValues: {
+        ':status': status,
+        ':updatedAt': nowIso
       },
       ReturnValues: 'ALL_NEW'
     });
     
     try {
       const response = await dynamoDB.docClient.send(command);
-      return response.Attributes as ContactRequest;
+      if (!response.Attributes) return undefined;
+      
+      // Convert to app schema
+      const dynamoRequest = response.Attributes as DynamoContactRequest;
+      const updatedRequest = {
+        ...dynamoRequest,
+        createdAt: new Date(dynamoRequest.createdAt),
+        updatedAt: new Date(dynamoRequest.updatedAt)
+      };
+      
+      // If accepted, create mutual contacts and handle any existing requests
+      if (status === 'accepted') {
+        try {
+          // Add mutual contacts
+          await Promise.all([
+            this.addContact(request.senderId, request.receiverId),
+            this.addContact(request.receiverId, request.senderId)
+          ]);
+          
+          // Update any other pending requests between these users to rejected
+          const allRequests = await this.getContactRequestsByUser(request.senderId);
+          const otherPendingRequests = allRequests.filter(r => 
+            r.id !== id && 
+            r.status === 'pending' && 
+            ((r.senderId === request.senderId && r.receiverId === request.receiverId) ||
+             (r.senderId === request.receiverId && r.receiverId === request.senderId))
+          );
+          
+          await Promise.all(
+            otherPendingRequests.map(r => 
+              this.updateContactRequestStatus(r.id, { status: 'rejected' })
+            )
+          );
+        } catch (error) {
+          console.error('Error handling contact request acceptance:', error);
+          // If error is due to existing contact, we can ignore it
+          if (!(error instanceof Error && error.message === 'Contact already exists')) {
+            throw error;
+          }
+        }
+      }
+      
+      return updatedRequest;
     } catch (error) {
       console.error('Error updating contact request status:', error);
       return undefined;
@@ -415,7 +486,6 @@ export class DynamoDBStorage implements IStorage {
   
   // Contacts
   async getContacts(userId: string): Promise<User[]> {
-    // Get all contacts where userId is the user
     const command = new QueryCommand({
       TableName: TableNames.CONTACTS,
       IndexName: 'UserIdIndex',
@@ -427,14 +497,20 @@ export class DynamoDBStorage implements IStorage {
     
     try {
       const response = await dynamoDB.docClient.send(command);
-      const contacts = response.Items as Contact[] || [];
+      if (!response.Items || response.Items.length === 0) return [];
       
-      // Get user details for each contact
-      const contactPromises = contacts.map(contact => this.getUser(contact.contactId));
-      const contactUsers = await Promise.all(contactPromises);
+      // Get unique contact IDs to prevent duplicates
+      const contactIds = [...new Set(response.Items.map(item => item.contactId))];
       
-      // Filter out any undefined users
-      return contactUsers.filter(user => user !== undefined) as User[];
+      // Fetch all contact users in parallel
+      const contactUsers = await Promise.all(
+        contactIds.map(contactId => this.getUser(contactId))
+      );
+      
+      // Filter out any undefined users and sort by username
+      return contactUsers
+        .filter((user): user is User => user !== undefined)
+        .sort((a, b) => a.username.localeCompare(b.username));
     } catch (error) {
       console.error('Error getting contacts:', error);
       return [];
@@ -442,10 +518,16 @@ export class DynamoDBStorage implements IStorage {
   }
 
   async addContact(userId: string, contactId: string): Promise<Contact> {
+    // First check if contact already exists
+    const existingContacts = await this.getContacts(userId);
+    if (existingContacts.some(contact => contact.id === contactId)) {
+      throw new Error('Contact already exists');
+    }
+
     const now = new Date();
     const nowIso = now.toISOString();
     
-    // Create DynamoDB compatible contact object
+    // Create a DynamoDB compatible contact
     const dynamoContact: DynamoContact = {
       id: uuidv4(),
       userId,
@@ -455,7 +537,9 @@ export class DynamoDBStorage implements IStorage {
     
     const command = new PutCommand({
       TableName: TableNames.CONTACTS,
-      Item: dynamoContact
+      Item: dynamoContact,
+      // Add condition to prevent duplicate contacts
+      ConditionExpression: 'attribute_not_exists(userId) AND attribute_not_exists(contactId)'
     });
     
     try {
@@ -479,21 +563,14 @@ export class DynamoDBStorage implements IStorage {
     const now = new Date();
     const nowIso = now.toISOString();
     
-    // Create a conversation key that can be used to query messages between two users
-    // Format is "smaller_id:larger_id" to ensure consistency
-    const [smallerId, largerId] = [message.senderId, message.receiverId].sort();
-    const conversationKey = `${smallerId}:${largerId}`;
-    
-    // Create DynamoDB compatible message object
+    // Create a DynamoDB compatible message
     const dynamoMessage: DynamoMessage = {
       id: uuidv4(),
       senderId: message.senderId,
       receiverId: message.receiverId,
-      conversationKey,
       content: message.content,
-      type: message.type || 'text', // Default to text if not specified
-      status: 'sent',
-      timestamp: nowIso,
+      type: message.type || 'text',
+      status: message.status || 'sent',
       createdAt: nowIso,
       updatedAt: nowIso
     };
@@ -506,14 +583,9 @@ export class DynamoDBStorage implements IStorage {
     try {
       await dynamoDB.docClient.send(command);
       
-      // Convert back to app schema for consistency
+      // Convert to app schema
       const appMessage: Message = {
-        id: dynamoMessage.id,
-        senderId: dynamoMessage.senderId,
-        receiverId: dynamoMessage.receiverId,
-        content: dynamoMessage.content,
-        type: dynamoMessage.type,
-        status: dynamoMessage.status,
+        ...dynamoMessage,
         createdAt: now,
         updatedAt: now
       };
@@ -526,23 +598,58 @@ export class DynamoDBStorage implements IStorage {
   }
 
   async getMessagesByUsers(user1Id: string, user2Id: string): Promise<Message[]> {
-    // Create the conversation key (ensuring consistent ordering)
-    const [smallerId, largerId] = [user1Id, user2Id].sort();
-    const conversationKey = `${smallerId}:${largerId}`;
-    
-    const command = new QueryCommand({
+    // Query messages where user1 is sender and user2 is receiver
+    const command1 = new QueryCommand({
       TableName: TableNames.MESSAGES,
-      IndexName: 'ConversationIndex',
-      KeyConditionExpression: 'conversationKey = :conversationKey',
+      IndexName: 'SenderReceiverIndex',
+      KeyConditionExpression: 'senderId = :senderId AND receiverId = :receiverId',
       ExpressionAttributeValues: {
-        ':conversationKey': conversationKey
-      },
-      ScanIndexForward: true // Order by timestamp (oldest first)
+        ':senderId': user1Id,
+        ':receiverId': user2Id
+      }
+    });
+    
+    // Query messages where user2 is sender and user1 is receiver
+    const command2 = new QueryCommand({
+      TableName: TableNames.MESSAGES,
+      IndexName: 'SenderReceiverIndex',
+      KeyConditionExpression: 'senderId = :senderId AND receiverId = :receiverId',
+      ExpressionAttributeValues: {
+        ':senderId': user2Id,
+        ':receiverId': user1Id
+      }
     });
     
     try {
-      const response = await dynamoDB.docClient.send(command);
-      return (response.Items || []) as Message[];
+      const [response1, response2] = await Promise.all([
+        dynamoDB.docClient.send(command1),
+        dynamoDB.docClient.send(command2)
+      ]);
+      
+      // Combine and convert messages
+      const messages1 = (response1.Items || []).map(item => {
+        const dynamoMessage = item as DynamoMessage;
+        return {
+          ...dynamoMessage,
+          createdAt: new Date(dynamoMessage.createdAt),
+          updatedAt: new Date(dynamoMessage.updatedAt)
+        };
+      });
+      
+      const messages2 = (response2.Items || []).map(item => {
+        const dynamoMessage = item as DynamoMessage;
+        return {
+          ...dynamoMessage,
+          createdAt: new Date(dynamoMessage.createdAt),
+          updatedAt: new Date(dynamoMessage.updatedAt)
+        };
+      });
+      
+      // Combine and sort by creation date (oldest first)
+      const allMessages = [...messages1, ...messages2];
+      return allMessages.sort((a, b) => 
+        a.createdAt.getTime() - b.createdAt.getTime()
+      );
     } catch (error) {
       console.error('Error getting messages by users:', error);
       return [];
@@ -550,23 +657,34 @@ export class DynamoDBStorage implements IStorage {
   }
 
   async updateMessageStatus(id: string, status: 'sent' | 'delivered' | 'read'): Promise<Message | undefined> {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    
     const command = new UpdateCommand({
       TableName: TableNames.MESSAGES,
       Key: { id },
       UpdateExpression: 'SET #status = :status, updatedAt = :updatedAt',
-      ExpressionAttributeValues: {
-        ':status': status,
-        ':updatedAt': new Date().toISOString()
-      },
       ExpressionAttributeNames: {
         '#status': 'status'
+      },
+      ExpressionAttributeValues: {
+        ':status': status,
+        ':updatedAt': nowIso
       },
       ReturnValues: 'ALL_NEW'
     });
     
     try {
       const response = await dynamoDB.docClient.send(command);
-      return response.Attributes as Message;
+      if (!response.Attributes) return undefined;
+      
+      // Convert to app schema
+      const dynamoMessage = response.Attributes as DynamoMessage;
+      return {
+        ...dynamoMessage,
+        createdAt: new Date(dynamoMessage.createdAt),
+        updatedAt: new Date(dynamoMessage.updatedAt)
+      };
     } catch (error) {
       console.error('Error updating message status:', error);
       return undefined;
